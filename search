@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
-# Full-screen real-model search console; isolated from the trainer's CUDA work.
+# Search launcher: terminal TUI or loopback-only WebUI, isolated from trainer CUDA.
 set -Eeuo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$root"
 
-language=en
-if [[ "${1:-}" == "ja" || "${1:-}" == "en" ]]; then
-  language=$1
-  shift
+mode=${1:-menu}
+if [[ "$mode" == "ja" || "$mode" == "en" ]]; then
+  mode=tui
+fi
+language=ja
+if [[ "$mode" == "tui" || "$mode" == "web" ]]; then
+  shift || true
+  if [[ "${1:-}" == "ja" || "${1:-}" == "en" ]]; then language=$1; shift; fi
 fi
 
 docker_cmd=(docker)
@@ -16,4 +20,27 @@ if ! docker info >/dev/null 2>&1; then
   docker_cmd=(sudo -n docker)
 fi
 
-exec "${docker_cmd[@]}" compose -f compose.yaml run --rm --no-deps search python3 scripts/search_console.py --lang "$language" "$@"
+case "$mode" in
+  tui)
+    exec "${docker_cmd[@]}" compose -f compose.yaml run --rm --no-deps search python3 scripts/search_console.py --lang "$language" "$@"
+    ;;
+  web)
+    printf 'NEUROSEEK Web UI (CPU/read-only): http://127.0.0.1:8787\n'
+    printf 'TUI command: ./search tui %s\n' "$language"
+    exec "${docker_cmd[@]}" compose -f compose.yaml run --rm --no-deps search python3 scripts/search_web.py --lang "$language" "$@"
+    ;;
+  menu)
+    cat <<'EOF'
+NEUROSEEK SEARCH LAUNCHER
+
+  [1] Terminal TUI   ./search tui ja
+  [2] Web UI         ./search web ja
+      Link (after start): http://127.0.0.1:8787
+
+The Web UI is loopback-only, CPU-only, and read-only.  It never joins CUDA or controls the trainer.
+EOF
+    ;;
+  *)
+    echo "Usage: ./search [tui|web] [ja|en]" >&2; exit 2
+    ;;
+esac

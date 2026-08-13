@@ -207,10 +207,12 @@ already detached. Use `./up.sh --no-tui` when you only need launcher status.
 For the video/demo search experience, launch the learned-policy console:
 
 ```bash
-./search
+./search                 # show the TUI / WebUI launcher
+./search tui ja          # full-screen terminal console
+./search web ja          # WebUI at http://127.0.0.1:8787
 ```
 
-Use `./search ja` for Japanese. This is a separate CPU-only, read-only
+Use `en` instead of `ja` for English. The WebUI and terminal console are separate CPU-only, read-only
 process: it loads the immutable presentation checkpoint and the mmap graph but
 does not create a CUDA context, touch `metrics.jsonl`, or signal the trainer.
 This makes it safe while an independent training job uses the GPU.
