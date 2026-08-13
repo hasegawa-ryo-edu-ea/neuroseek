@@ -62,6 +62,7 @@ class WordCandidate:
     label: str
     description: str
     local_id: int | None
+    url: str = ""
 
 
 @dataclass
@@ -87,7 +88,9 @@ def wikidata_candidates(term: str, language: str, kind: str) -> list[dict[str, s
     with urllib.request.urlopen(request, timeout=5) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return [{"id": str(row["id"]), "label": str(row.get("label", row["id"])),
-             "description": str(row.get("description", ""))} for row in payload.get("search", [])]
+             "description": str(row.get("description", "")),
+             "url": str(row.get("concepturi", f"https://www.wikidata.org/wiki/{row['id']}"))}
+            for row in payload.get("search", [])]
 
 
 def wikidata_labels(identifiers: list[str], language: str) -> dict[str, str]:
@@ -180,18 +183,18 @@ class Console:
         started = time.perf_counter()
         direct = term.strip().upper()
         if direct.startswith("Q") and direct[1:].isdigit():
-            candidates = [WordCandidate(direct, direct, self.text("direct local Q-ID", "ローカルQ-ID直接指定"), self.graph.find_entity_identifier(direct))]
+            candidates = [WordCandidate(direct, direct, self.text("direct Wikidata Q-ID", "Wikidata Q-ID直接指定"), self.graph.find_entity_identifier(direct), f"https://www.wikidata.org/wiki/{direct}")]
         else:
             remote = wikidata_candidates(term, self.language, "item")
-            candidates = [WordCandidate(row["id"], row["label"], row["description"], self.graph.find_entity_identifier(row["id"])) for row in remote]
+            candidates = [WordCandidate(row["id"], row["label"], row["description"], self.graph.find_entity_identifier(row["id"]), row["url"]) for row in remote]
         self.word = WordSearch(term, candidates, elapsed_ms=(time.perf_counter() - started) * 1000.0)
         usable = next((index for index, candidate in enumerate(candidates) if candidate.local_id is not None), None)
         if usable is None:
-            self.notice = self.text("Name resolved, but none of its candidates are in the local Wikidata5M graph.", "名称は解決できましたが、候補はローカルWikidata5Mグラフにありません。")
+            self.notice = self.text("Wikidata context found. This demo graph has no local evidence for these candidates.", "Wikidataの説明は見つかりました。このデモグラフにはローカル証拠がありません。")
         else:
             self.word.selected = usable
             self.expand_word()
-            self.notice = self.text("Word resolved. The first local graph candidate is selected; use :use N to change it.", "語を解決しました。最初のローカル候補を選択中です。:use Nで変更できます。")
+            self.notice = self.text("Found online; now showing facts stored in this Jetson's local graph.", "名称を解決し、このJetsonに保存済みのローカル事実を表示しています。")
 
     def select_word(self, index: int) -> None:
         if self.word is None or not 1 <= index <= len(self.word.candidates):
@@ -265,7 +268,7 @@ class Console:
     def header(self) -> int:
         height, width = self.screen.getmaxyx()
         self.write(0, 1, "NEUROSEEK", 1, True)
-        self.write(0, 13, self.text("LIVE MODEL SEARCH", "ライブモデル検索"), 6, True)
+        self.write(0, 13, self.text("EVIDENCE GRAPH SEARCH", "証拠グラフ探索"), 6, True)
         self.write(1, 1, "●", 2, True)
         self.write(1, 3, self.text("CPU-ONLY · READ-ONLY · TRAINER ISOLATED", "CPU専用 · 読み取り専用 · 学習器から分離"), 6)
         self.write(1, max(1, width - 38), f"TASK {self.task_index + 1}/{len(self.tasks)}", 4)
@@ -287,22 +290,24 @@ class Console:
     def page_words(self, row: int) -> None:
         height, _width = self.screen.getmaxyx()
         compact = height < 32
-        self.write(row, 2, self.text("SEARCH THE KNOWLEDGE GRAPH", "知識グラフを検索"), 1, True)
-        self.write(row + 1, 2, self.text("1 Find a word   →   2 Pick an available result   →   3 Explore its real facts", "1 語を探す   →   2 探索できる候補を選ぶ   →   3 実際の事実をたどる"), 6)
+        self.write(row, 2, self.text("KNOWLEDGE EXPLORER", "知識エクスプローラー"), 1, True)
+        self.write(row + 1, 2, self.text("Ask a word  →  Resolve its identity  →  Inspect evidence stored on this Jetson", "語を入力  →  対象を特定  →  このJetsonにある証拠をたどる"), 6)
         if self.word is None:
-            self.write(row + 4, 4, self.text("START A SEARCH", "検索をはじめる"), 4, True)
-            self.write(row + 6, 4, self.text("Press  f  and type a word", "f を押して、調べたい語を入力"), 6)
-            self.write(row + 8, 7, self.text(":find Japan", ":find 日本"), 3, True)
-            self.write(row + 11, 4, self.text("You can also use English, Japanese, or a Wikidata ID such as Q17.", "日本語・英語・Q17のようなWikidata IDを使えます。"), 6)
-            self.write(row + 13, 4, self.text("No model is run in this page: it is a direct read-only walk of real graph facts.", "このページではモデルを実行せず、実グラフの事実を読み取り専用で直接たどります。"), 6)
+            self.write(row + 4, 4, self.text("START HERE", "ここから開始"), 4, True)
+            self.write(row + 6, 4, self.text("Press  f  and type a person, place, concept, or Q-ID", "f を押して、人・場所・概念・Q-IDを入力"), 6)
+            self.write(row + 8, 7, self.text("日本", "日本"), 3, True)
+            self.write(row + 8, 18, self.text("then press Enter", "を入力してEnter"), 6)
+            self.write(row + 11, 4, self.text("This page shows real local graph facts. The learned-policy demonstration is on [2] MODEL.", "このページは実ローカルグラフの事実を表示します。学習済み方策の実演は [2] モデルです。"), 6)
+            self.write(row + 14, 4, self.text("Why this matters: NEUROSEEK keeps the answer separate from the evidence used to support it.", "重要な点: NEUROSEEKは回答と、その根拠となる証拠を分けて扱います。"), 2)
             return
         self.write(row + 3, 2, f"{self.text('SEARCHED FOR', '検索語')}  {self.word.term}", 3, True)
         available = self.local_word_candidates()
-        skipped = len(self.word.candidates) - len(available)
-        self.write(row + 5, 2, self.text("CHOOSE A RESULT READY TO EXPLORE", "探索できる候補を選ぶ"), 4, True)
+        outside = [(index, candidate) for index, candidate in enumerate(self.word.candidates) if candidate.local_id is None]
+        self.write(row + 5, 2, self.text("A  AVAILABLE ON THIS JETSON", "A  このJETSONで探索可能"), 2, True)
         if not available:
-            self.write(row + 7, 4, self.text("This word exists in Wikidata, but its results were not downloaded into this demo graph.", "この語はWikidataにありますが、該当候補はこのデモ用グラフに収録されていません。"), 5)
-            self.write(row + 9, 4, self.text("Try a different candidate, or enter a known Q-ID directly.", "別の語を試すか、既知のQ-IDを直接入力してください。"), 6)
+            self.write(row + 7, 4, self.text("No matching entities were included in this fixed local dataset.", "この固定ローカルデータセットには一致する対象が収録されていません。"), 5)
+            self.write(row + 9, 4, self.text("You can still read the Wikidata context below; it is not local graph evidence.", "下のWikidata説明は確認できますが、ローカルグラフの証拠ではありません。"), 6)
+            self.draw_online_context(row + 12, outside, compact)
             return
         candidate_limit = 2 if compact else 4
         for display_index, (index, candidate) in enumerate(available[:candidate_limit]):
@@ -317,14 +322,13 @@ class Console:
         if more_ready:
             self.write(candidate_bottom, 4, self.text(f"{more_ready} more results are ready to explore — choose them with :use N.", f"ほかに {more_ready} 件の探索可能な候補があります。:use Nで選択できます。"), 6)
             candidate_bottom += 1
-        if skipped and not compact:
-            self.write(candidate_bottom, 4, self.text(f"{skipped} name matches are known by Wikidata but were not downloaded into this demo graph.", f"{skipped} 件はWikidataにありますが、このデモ用グラフには収録されていません。"), 6)
         if self.word.selected is None:
+            self.draw_online_context(candidate_bottom + 2, outside, compact)
             return
         selected = self.word.candidates[self.word.selected]
         after = max(row + (10 if compact else 15), candidate_bottom + 1)
         relation = self.word.relation.label if self.word.relation else self.text("all facts", "すべての事実")
-        self.write(after, 2, f"{self.text('REAL FACTS ABOUT', '実グラフ上の事実')}  {selected.label}  ·  {relation}", 1, True)
+        self.write(after, 2, f"B  {self.text('LOCAL EVIDENCE FOR', 'ローカル証拠')}  {selected.label}  ·  {relation}", 1, True)
         if not compact:
             self.write(after + 1, 4, self.text("To narrow this list, press : and type :rel capital", "絞り込むには : を押して :rel 首都 と入力"), 6)
         edges = self.word.neighbors or []
@@ -339,30 +343,47 @@ class Console:
             self.write(edge_start + index, 42, self.entity(node), 3)
         status_row = edge_start + edge_limit + 1
         if status_row < height - 3:
-            self.write(status_row, 2, f"{self.text('SAFE MODE', '安全モード')}  CPU · {self.text('GRAPH DATA', 'グラフデータ')} read-only · CUDA off · {self.text('NAME LOOKUP', '名称解決')} {self.word.elapsed_ms:.1f} ms", 6)
+            self.write(status_row, 2, f"✓ {self.text('EVIDENCE ON DEVICE', '端末内の証拠')}  CPU · local graph read-only · CUDA off · {self.text('name lookup', '名称解決')} {self.word.elapsed_ms:.1f} ms", 2)
+        if not compact:
+            self.draw_online_context(status_row + 2, outside, compact)
+
+    def draw_online_context(self, row: int, outside: list[tuple[int, WordCandidate]], compact: bool) -> None:
+        height, _width = self.screen.getmaxyx()
+        if not outside or row >= height - 5:
+            return
+        self.write(row, 2, self.text("C  WIKIDATA CONTEXT (NOT LOCAL EVIDENCE)", "C  WIKIDATAの説明（ローカル証拠ではありません）"), 4, True)
+        limit = 1 if compact else 2
+        for display_index, (index, candidate) in enumerate(outside[:limit]):
+            line = row + 1 + display_index * 2
+            if line >= height - 4:
+                break
+            self.write(line, 4, f"○ [{index + 1}] {candidate.label} [{candidate.identifier}]", 6)
+            self.write(line + 1, 8, candidate.description or self.text("Known by Wikidata; unavailable for local exploration.", "Wikidataにはありますが、ローカル探索には使えません。"), 6)
 
     def page_model(self, row: int) -> None:
         query, _ = self.tasks[self.task_index]
-        self.write(row, 2, self.text("QUERY DEFINITION", "クエリ定義"), 1, True)
-        self.write(row + 2, 2, self.text("SOURCE", "始点"), 6)
-        self.write(row + 2, 16, self.entity(query.source), 3, True)
-        self.write(row + 4, 2, self.text("RELATION PROGRAM", "関係プログラム"), 6)
+        self.write(row, 2, self.text("LEARNED POLICY DEMONSTRATION", "学習済み方策デモ"), 1, True)
+        self.write(row + 1, 2, self.text("A held-out graph task: the policy selects operations, then the graph—not a text model—returns evidence.", "未使用のグラフ課題です。方策が演算を選び、テキストモデルではなくグラフが証拠を返します。"), 6)
+        self.write(row + 3, 2, self.text("START", "開始"), 6)
+        self.write(row + 3, 16, self.entity(query.source), 3, True)
+        self.write(row + 5, 2, self.text("TASK RELATIONS", "課題の関係"), 6)
         for index, relation in enumerate(query.relations):
-            self.write(row + 5 + index, 6, f"{index + 1:02}  ── {self.relation(relation)} ──▶", 1 if index % 2 == 0 else 3)
-        after = row + 7 + len(query.relations)
+            self.write(row + 6 + index, 6, f"{index + 1:02}  ── {self.relation(relation)} ──▶", 1 if index % 2 == 0 else 3)
+        after = row + 8 + len(query.relations)
         if self.run is None:
-            self.write(after, 2, self.text("The reference answer remains hidden from the model. Press r to execute the learned policy.", "正解は方策に与えられません。rで学習済み方策を実行します。"), 4)
+            self.write(after, 2, self.text("The reference answer is never passed into the model. Press r to let the learned policy search.", "正解はモデルに渡されません。rで学習済み方策に探索させます。"), 4)
+            self.write(after + 2, 2, self.text("Afterward, open [3] to see every chosen operator and [4] to see the independent verdict.", "実行後は [3] で選択演算子、[4] で独立した検証結果を確認できます。"), 6)
             return
         result = self.run.result
         state = "VALID PROOF" if result.valid_proof else ("ANSWER UNVERIFIED" if result.answer_correct else "NO ANSWER")
-        self.write(after, 2, state, 2 if result.valid_proof else 5, True)
+        self.write(after, 2, f"{self.text('RESULT', '結果')}  {state}", 2 if result.valid_proof else 5, True)
         answer = self.entity(self.run.answer) if self.run.answer is not None else self.text("none", "なし")
         self.write(after + 1, 2, f"{self.text('ANSWER', '回答')}  {answer}", 6)
         self.write(after + 2, 2, f"{self.text('LATENCY', 'レイテンシ')}  {self.run.elapsed_ms:.2f} ms CPU policy+search  ·  {self.text('CREDITS', 'クレジット')} {result.credits}  ·  {self.text('EDGES', 'エッジ')} {result.edges_examined}", 6)
 
     def page_path(self, row: int) -> None:
-        self.write(row, 2, self.text("LEARNED OPERATOR LATTICE", "学習済み演算子ラティス"), 1, True)
-        self.write(row + 1, 2, self.text("This is the operation sequence actually selected by the loaded checkpoint.", "これはロード済みチェックポイントが実際に選択した演算子列です。"), 6)
+        self.write(row, 2, self.text("HOW THE POLICY CHOSE A PATH", "方策が経路を選ぶ過程"), 1, True)
+        self.write(row + 1, 2, self.text("Every dot is an operation actually emitted by the loaded checkpoint; connectors only join adjacent executed steps.", "各点はロード済みチェックポイントが実際に出した演算です。線は連続する実行ステップだけを結びます。"), 6)
         if self.run is None:
             self.write(row + 4, 2, self.text("No execution yet. Press r.", "まだ実行されていません。rを押してください。"), 4)
             return
@@ -381,13 +402,13 @@ class Console:
             previous = lane
 
     def page_proof(self, row: int) -> None:
-        self.write(row, 2, self.text("INDEPENDENT PROOF CHECK", "独立証明チェック"), 1, True)
+        self.write(row, 2, self.text("INDEPENDENT EVIDENCE VERDICT", "独立した証拠検証"), 1, True)
         if self.run is None:
             self.write(row + 3, 2, self.text("A proof can only appear after a real policy execution.", "証明は実方策を実行した後だけ表示されます。"), 4)
             return
         result = self.run.result
         self.write(row + 2, 2, self.text("VALID", "有効") if result.valid_proof else self.text("NOT VALID", "無効"), 2 if result.valid_proof else 5, True)
-        self.write(row + 2, 18, self.text("Graph evidence reconstructed independently from the executed frontier.", "実行済みフロンティアからグラフ証拠を独立再構築しています。"), 6)
+        self.write(row + 2, 18, self.text("The validator rebuilds the graph path from what the policy actually executed.", "検証器は、方策が実行した内容からグラフ経路を再構築します。"), 6)
         if not self.run.result.valid_proof:
             self.write(row + 5, 2, self.text("No valid proof path was produced. This outcome is shown as-is.", "有効な証明経路は生成されませんでした。この結果をそのまま表示しています。"), 5)
             return
@@ -402,18 +423,19 @@ class Console:
             self.write(sample_row + 1 + index, 6, self.entity(entity), 6)
 
     def page_system(self, row: int) -> None:
-        self.write(row, 2, self.text("ISOLATION / PROVENANCE", "隔離 / 来歴"), 1, True)
+        self.write(row, 2, self.text("WHY NEUROSEEK IS DIFFERENT", "NEUROSEEKが違う理由"), 1, True)
+        self.write(row + 1, 2, self.text("It does not just produce an answer: it chooses a graph program and makes its evidence inspectable.", "単に回答を出すのではなく、グラフ探索プログラムを選び、根拠を確認可能にします。"), 6)
         rows = [
-            (self.text("MODEL", "モデル"), "NavigatorPolicy (CPU inference)"),
-            (self.text("CHECKPOINT", "チェックポイント"), str(self.checkpoint)),
-            (self.text("CHECKPOINT STEP", "チェックポイントステップ"), str(self.model_step)),
-            (self.text("GRAPH", "グラフ"), "data/processed (mmap, read-only)"),
-            (self.text("CUDA", "CUDA"), self.text("disabled: no context created", "無効: コンテキストを作成しません")),
-            (self.text("TRAINER", "学習器"), self.text("no socket, no signal, no writes", "ソケットなし・シグナルなし・書込みなし")),
+            (self.text("1  LEARN", "1  学習"), self.text("A learned policy chooses graph operations instead of a fixed traversal rule.", "学習済み方策が、固定ルールではなくグラフ演算を選びます。")),
+            (self.text("2  EXPLORE", "2  探索"), self.text("The selected program touches real memory-mapped graph edges on the device.", "選ばれたプログラムが、端末内の実メモリマップグラフエッジをたどります。")),
+            (self.text("3  PROVE", "3  証明"), self.text("A separate validator accepts only reconstructable graph evidence.", "別の検証器が、再構築できるグラフ証拠だけを受理します。")),
+            (self.text("4  COEXIST", "4  共存"), self.text("This viewer is CPU/read-only: no CUDA context, no trainer control, no writes.", "このビューアはCPU・読み取り専用です。CUDA・学習制御・書込みを行いません。")),
         ]
         for index, (name, value) in enumerate(rows):
-            self.write(row + 2 + index * 2, 3, name, 4, True)
-            self.write(row + 2 + index * 2, 24, value, 6)
+            self.write(row + 3 + index * 3, 3, name, 4, True)
+            self.write(row + 4 + index * 3, 7, value, 6)
+        self.write(row + 16, 3, f"{self.text('CHECKPOINT', 'チェックポイント')}  {self.checkpoint}", 6)
+        self.write(row + 17, 3, f"{self.text('TRAINED STEP', '学習ステップ')}  {self.model_step}", 6)
 
     def draw(self) -> None:
         self.screen.erase()

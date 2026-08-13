@@ -229,10 +229,27 @@ their real outgoing facts. Use `:use 2` for another result and `:rel capital`
 
 Wikidata may know a name that this fixed demo dataset did not download. That
 does not mean the item is wrong or nonexistent; it simply cannot be explored
-locally in this experiment, so it is kept out of the main candidate list.
+locally in this experiment. The viewer shows its Wikidata name and description
+in a separately labeled context section, never as local graph evidence.
 Name resolution uses the public Wikidata API; all graph traversal, targets,
 and evidence remain local and read-only. Without network access, Q/P IDs can
 still be entered directly.
+
+### What the presentation demonstrates
+
+NEUROSEEK should be demonstrated as an evidence pipeline, not as a generic
+chatbot. The viewer deliberately separates three claims:
+
+1. **Words** resolves a Japanese or English term and shows facts that are
+   actually present in the local graph.
+2. **Model / Path** runs the learned policy on a held-out task and shows the
+   exact graph operators it selected.
+3. **Proof** independently reconstructs the returned graph evidence and
+   accepts or rejects it.
+
+This separation makes it clear which information was resolved online for
+display, which evidence was found on the Jetson, and which result was produced
+by the trained policy.
 
 ## How to interpret a run
 
