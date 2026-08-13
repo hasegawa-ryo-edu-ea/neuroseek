@@ -73,6 +73,14 @@ class GraphMmap:
     def relation_label(self, relation: int) -> str:
         return self._relations_text.row(relation)[2]
 
+    def find_entity_identifier(self, identifier: str) -> int | None:
+        """Resolve an exact Wikidata Q identifier without materialising labels."""
+        return self._entities_text.find_identifier(identifier)
+
+    def find_relation_identifier(self, identifier: str) -> int | None:
+        """Resolve an exact Wikidata P identifier without materialising labels."""
+        return self._relations_text.find_identifier(identifier)
+
 
 class _TsvLookup:
     """Sparse mmap index for ordered ``id<TAB>identifier<TAB>label`` rows."""
@@ -120,3 +128,24 @@ class _TsvLookup:
         if len(fields) != 3 or int(fields[0]) != identifier:
             raise ValueError(f"malformed or out-of-order display lookup: {self.path}")
         return fields[0], fields[1], fields[2]
+
+    def find_identifier(self, identifier: str) -> int | None:
+        """Find a TSV second-column identifier through the mmap, allocation-free.
+
+        The compact IDs are intentionally not ordered by Wikidata identifier,
+        so a binary search is invalid.  ``mmap.find`` scans the immutable text
+        directly and keeps an occasional interactive lookup out of RAM.
+        """
+        marker = f"\t{identifier}\t".encode("utf-8")
+        position = self._mapped.find(marker)
+        if position < 0:
+            return None
+        beginning = self._mapped.rfind(b"\n", 0, position)
+        beginning = 0 if beginning < 0 else beginning + 1
+        ending = self._mapped.find(b"\n", position)
+        if ending < 0:
+            return None
+        fields = self._mapped[beginning:ending].decode("utf-8").split("\t")
+        if len(fields) != 3 or fields[1] != identifier:
+            return None
+        return int(fields[0])

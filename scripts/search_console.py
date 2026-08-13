@@ -9,8 +9,13 @@ from __future__ import annotations
 
 import argparse
 import curses
+import json
 import os
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -51,6 +56,67 @@ class SearchRun:
     proof_path: tuple[int, ...]
 
 
+@dataclass
+class WordCandidate:
+    identifier: str
+    label: str
+    description: str
+    local_id: int | None
+
+
+@dataclass
+class WordSearch:
+    term: str
+    candidates: list[WordCandidate]
+    selected: int | None = None
+    relation_term: str = ""
+    relation: WordCandidate | None = None
+    neighbors: list[tuple[int, int]] | None = None
+    elapsed_ms: float = 0.0
+
+
+def wikidata_candidates(term: str, language: str, kind: str) -> list[dict[str, str]]:
+    """Resolve a human word to public Wikidata IDs; graph traversal stays local."""
+    params = urllib.parse.urlencode({"action": "wbsearchentities", "search": term,
+                                     "language": language, "format": "json", "limit": 6,
+                                     "type": "property" if kind == "property" else "item"})
+    request = urllib.request.Request(
+        f"https://www.wikidata.org/w/api.php?{params}",
+        headers={"User-Agent": "NEUROSEEK-Jetson-demo/0.1 (local read-only knowledge graph viewer)"},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return [{"id": str(row["id"]), "label": str(row.get("label", row["id"])),
+             "description": str(row.get("description", ""))} for row in payload.get("search", [])]
+
+
+def wikidata_labels(identifiers: list[str], language: str) -> dict[str, str]:
+    """Fetch display labels in one bounded request; IDs stay the local truth."""
+    unique = list(dict.fromkeys(identifiers))[:24]
+    if not unique:
+        return {}
+    params = urllib.parse.urlencode({"action": "wbgetentities", "ids": "|".join(unique),
+                                     "props": "labels", "languages": f"{language}|en", "format": "json"})
+    request = urllib.request.Request(
+        f"https://www.wikidata.org/w/api.php?{params}",
+        headers={"User-Agent": "NEUROSEEK-Jetson-demo/0.1 (local read-only knowledge graph viewer)"},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    result: dict[str, str] = {}
+    for identifier, entity in payload.get("entities", {}).items():
+        labels = entity.get("labels", {})
+        chosen = labels.get(language) or labels.get("en")
+        if isinstance(chosen, dict) and isinstance(chosen.get("value"), str):
+            result[str(identifier)] = chosen["value"]
+    return result
+
+
+def cells(value: str) -> int:
+    """Terminal-cell width for Japanese tab labels; curses uses cells, not len."""
+    return sum(2 if unicodedata.east_asian_width(char) in {"W", "F", "A"} else 1 for char in value)
+
+
 class Console:
     def __init__(self, screen: Any, graph: GraphMmap, model: NavigatorPolicy, tasks: list[tuple[QuerySpec, tuple[int, ...] | None]], checkpoint: Path, language: str):
         self.screen, self.graph, self.model, self.tasks, self.checkpoint = screen, graph, model, tasks, checkpoint
@@ -58,6 +124,8 @@ class Console:
         self.task_index = 0
         self.tab = 1
         self.run: SearchRun | None = None
+        self.word: WordSearch | None = None
+        self.label_cache: dict[str, str] = {}
         self.command = ""
         self.command_mode = False
         self.notice = self.text("r: execute the loaded policy", "r: 学習済み方策を実行")
@@ -83,10 +151,72 @@ class Console:
             pass
 
     def entity(self, identifier: int) -> str:
-        return f"{self.graph.entity_label(identifier)}  [{self.graph.entity_identifier(identifier)}]"
+        wikidata_id = self.graph.entity_identifier(identifier)
+        return f"{self.label_cache.get(wikidata_id, self.graph.entity_label(identifier))}  [{wikidata_id}]"
 
     def relation(self, identifier: int) -> str:
-        return f"{self.graph.relation_label(identifier)}  [{self.graph.relation_identifier(identifier)}]"
+        wikidata_id = self.graph.relation_identifier(identifier)
+        return f"{self.label_cache.get(wikidata_id, self.graph.relation_label(identifier))}  [{wikidata_id}]"
+
+    def word_find(self, term: str) -> None:
+        started = time.perf_counter()
+        direct = term.strip().upper()
+        if direct.startswith("Q") and direct[1:].isdigit():
+            candidates = [WordCandidate(direct, direct, self.text("direct local Q-ID", "ローカルQ-ID直接指定"), self.graph.find_entity_identifier(direct))]
+        else:
+            remote = wikidata_candidates(term, self.language, "item")
+            candidates = [WordCandidate(row["id"], row["label"], row["description"], self.graph.find_entity_identifier(row["id"])) for row in remote]
+        self.word = WordSearch(term, candidates, elapsed_ms=(time.perf_counter() - started) * 1000.0)
+        usable = next((index for index, candidate in enumerate(candidates) if candidate.local_id is not None), None)
+        if usable is None:
+            self.notice = self.text("Name resolved, but none of its candidates are in the local Wikidata5M graph.", "名称は解決できましたが、候補はローカルWikidata5Mグラフにありません。")
+        else:
+            self.word.selected = usable
+            self.expand_word()
+            self.notice = self.text("Word resolved. The first local graph candidate is selected; use :use N to change it.", "語を解決しました。最初のローカル候補を選択中です。:use Nで変更できます。")
+
+    def select_word(self, index: int) -> None:
+        if self.word is None or not 1 <= index <= len(self.word.candidates):
+            raise ValueError("candidate index is unavailable")
+        if self.word.candidates[index - 1].local_id is None:
+            raise ValueError("candidate is not present in local graph")
+        self.word.selected = index - 1
+        self.expand_word()
+
+    def word_relation(self, term: str) -> None:
+        if self.word is None or self.word.selected is None:
+            raise ValueError("find a local graph entity first")
+        direct = term.strip().upper()
+        remote = ([{"id": direct, "label": direct, "description": self.text("direct local P-ID", "ローカルP-ID直接指定")}]
+                  if direct.startswith("P") and direct[1:].isdigit()
+                  else wikidata_candidates(term, self.language, "property"))
+        for row in remote:
+            local_id = self.graph.find_relation_identifier(row["id"])
+            if local_id is not None:
+                self.word.relation_term = term
+                self.word.relation = WordCandidate(row["id"], row["label"], row["description"], local_id)
+                self.expand_word()
+                self.notice = self.text("Relation filter applied to real local graph edges.", "実際のローカルグラフエッジに関係フィルタを適用しました。")
+                return
+        raise ValueError("resolved relation is absent from local graph")
+
+    def expand_word(self) -> None:
+        assert self.word is not None and self.word.selected is not None
+        entity = self.word.candidates[self.word.selected]
+        assert entity.local_id is not None
+        nodes, relations = self.graph.neighbors(entity.local_id)
+        edges = [(int(node), int(relation)) for node, relation in zip(nodes, relations)]
+        if self.word.relation is not None:
+            edges = [(node, relation) for node, relation in edges if relation == self.word.relation.local_id]
+        self.word.neighbors = edges[:12]
+        identifiers = [self.graph.entity_identifier(node) for node, _relation in self.word.neighbors]
+        identifiers.extend(self.graph.relation_identifier(relation) for _node, relation in self.word.neighbors)
+        try:
+            self.label_cache.update(wikidata_labels(identifiers, self.language))
+        except (OSError, urllib.error.URLError, ValueError):
+            # Names are a display enhancement. Local Q/P IDs and graph edges
+            # remain fully usable if the optional public lookup is unavailable.
+            pass
 
     def execute(self) -> None:
         query, _ = self.tasks[self.task_index]
@@ -117,17 +247,54 @@ class Console:
         self.write(1, 3, self.text("CPU-ONLY · READ-ONLY · TRAINER ISOLATED", "CPU専用 · 読み取り専用 · 学習器から分離"), 6)
         self.write(1, max(1, width - 38), f"TASK {self.task_index + 1}/{len(self.tasks)}", 4)
         self.write(2, 1, "─" * max(1, width - 2), 1)
-        tabs = [(1, self.text("SEARCH", "探索")), (2, self.text("PATH", "経路")), (3, self.text("PROOF", "証明")), (4, self.text("SYSTEM", "システム"))]
+        tabs = [(1, self.text("WORDS", "単語検索")), (2, self.text("MODEL", "モデル")), (3, self.text("PATH", "経路")), (4, self.text("PROOF", "証明")), (5, self.text("SYSTEM", "システム"))]
         column = 2
         for number, name in tabs:
             active = number == self.tab
             self.write(3, column, f"[{number}] {name}", 1 if active else 6, active)
-            column += len(name) + 7
-        self.write(3, max(column + 2, width - 42), self.text("r run · n next · : command · q quit", "r 実行 · n 次問 · : コマンド · q 終了"), 6)
+            column += cells(name) + 7
+        controls = self.text("r model run · n next · : command · q quit", "r モデル実行 · n 次問 · : コマンド · q 終了")
+        if width - column > cells(controls) + 3:
+            self.write(3, width - cells(controls) - 2, controls, 6)
+        elif width - column > 10:
+            self.write(3, column + 1, ":help", 6)
         self.write(4, 1, "─" * max(1, width - 2), 1)
         return 6
 
-    def page_search(self, row: int) -> None:
+    def page_words(self, row: int) -> None:
+        self.write(row, 2, self.text("WORD → WIKIDATA → LOCAL GRAPH", "単語 → WIKIDATA → ローカルグラフ"), 1, True)
+        self.write(row + 1, 2, self.text("Start with :find Japan  ·  Then optionally filter with :rel capital", ":find 日本 から開始  ·  必要なら :rel 首都 で絞り込み"), 6)
+        if self.word is None:
+            self.write(row + 4, 4, self.text("TYPE A WORD", "単語を入力"), 4, True)
+            self.write(row + 6, 4, self.text(":find Japan", ":find 日本"), 3, True)
+            self.write(row + 8, 4, self.text("The name is resolved to a Q-ID, then local immutable graph edges are explored.", "名称をQ-IDへ解決してから、不変のローカルグラフエッジを探索します。"), 6)
+            return
+        self.write(row + 3, 2, f"{self.text('INPUT', '入力')}  {self.word.term}", 3, True)
+        self.write(row + 4, 2, self.text("WIKIDATA CANDIDATES", "WIKIDATA候補"), 4, True)
+        for index, candidate in enumerate(self.word.candidates[:5]):
+            selected = index == self.word.selected
+            present = candidate.local_id is not None
+            marker = "▶" if selected else "·"
+            local = self.text("LOCAL", "ローカル") if present else self.text("not in local graph", "ローカルグラフ外")
+            self.write(row + 5 + index, 4, f"{marker} [{index + 1}] {candidate.label} [{candidate.identifier}]  {local}", 2 if selected else (6 if present else 5), selected)
+            if candidate.description:
+                self.write(row + 5 + index, 58, candidate.description, 6)
+        if self.word.selected is None:
+            return
+        selected = self.word.candidates[self.word.selected]
+        after = row + 12
+        relation = self.word.relation.label if self.word.relation else self.text("all outgoing relations", "すべての出力関係")
+        self.write(after, 2, f"{self.text('LOCAL EXPANSION', 'ローカル展開')}  {selected.label}  →  {relation}", 1, True)
+        edges = self.word.neighbors or []
+        if not edges:
+            self.write(after + 2, 4, self.text("No matching local edges.", "一致するローカルエッジはありません。"), 5)
+        for index, (node, relation_id) in enumerate(edges[:7]):
+            self.write(after + 2 + index, 5, f"{index + 1:02}  {self.relation(relation_id)}", 4)
+            self.write(after + 2 + index, 40, "→", 1, True)
+            self.write(after + 2 + index, 44, self.entity(node), 3)
+        self.write(after + 10, 2, f"{self.text('NAME LOOKUP', '名称解決')} {self.word.elapsed_ms:.1f} ms · {self.text('GRAPH', 'グラフ')} mmap read-only · {self.text('CUDA', 'CUDA')} OFF", 6)
+
+    def page_model(self, row: int) -> None:
         query, _ = self.tasks[self.task_index]
         self.write(row, 2, self.text("QUERY DEFINITION", "クエリ定義"), 1, True)
         self.write(row + 2, 2, self.text("SOURCE", "始点"), 6)
@@ -205,10 +372,12 @@ class Console:
         self.screen.erase()
         row = self.header()
         if self.tab == 1:
-            self.page_search(row)
+            self.page_words(row)
         elif self.tab == 2:
-            self.page_path(row)
+            self.page_model(row)
         elif self.tab == 3:
+            self.page_path(row)
+        elif self.tab == 4:
             self.page_proof(row)
         else:
             self.page_system(row)
@@ -228,22 +397,38 @@ class Console:
         words = command.strip().lstrip(":/").split()
         if not words:
             return False
-        if words[0] in {"q", "quit", "exit"}:
-            return True
-        if words[0] in {"r", "run"}:
-            if len(words) > 1:
-                self.task_index = int(words[1]) % len(self.tasks)
-            self.execute()
-        elif words[0] in {"n", "next"}:
-            self.task_index = (self.task_index + 1) % len(self.tasks)
-            self.run = None
-            self.notice = self.text("Loaded next immutable validation task.", "次の不変検証タスクを読み込みました。")
-        elif words[0] in {"lang", "language"} and len(words) > 1 and words[1] in {"ja", "en"}:
-            self.language = words[1]
-        elif words[0] in {"help", "?"}:
-            self.notice = "r/run [index] · n/next · 1-4 tabs · l · lang ja|en · q/quit"
-        else:
-            self.notice = self.text("Unknown viewer command. Use :help.", "不明なビューアコマンドです。:helpを使用してください。")
+        try:
+            if words[0] in {"q", "quit", "exit"}:
+                return True
+            if words[0] in {"find", "search"} and len(words) > 1:
+                self.word_find(" ".join(words[1:]))
+                self.tab = 1
+            elif words[0] in {"use", "select"} and len(words) == 2:
+                self.select_word(int(words[1]))
+                self.notice = self.text("Local graph candidate selected.", "ローカルグラフ候補を選択しました。")
+            elif words[0] in {"rel", "relation"} and len(words) > 1:
+                self.word_relation(" ".join(words[1:]))
+                self.tab = 1
+            elif words[0] in {"clear", "reset"}:
+                self.word = None
+                self.tab = 1
+                self.notice = self.text("Word-search workspace cleared.", "単語検索ワークスペースを消去しました。")
+            elif words[0] in {"r", "run"}:
+                if len(words) > 1:
+                    self.task_index = int(words[1]) % len(self.tasks)
+                self.execute()
+            elif words[0] in {"n", "next"}:
+                self.task_index = (self.task_index + 1) % len(self.tasks)
+                self.run = None
+                self.notice = self.text("Loaded next immutable validation task.", "次の不変検証タスクを読み込みました。")
+            elif words[0] in {"lang", "language"} and len(words) > 1 and words[1] in {"ja", "en"}:
+                self.language = words[1]
+            elif words[0] in {"help", "?"}:
+                self.notice = ":find WORD · :use N · :rel WORD · r/run [index] · n/next · 1-5 tabs · l · :quit"
+            else:
+                self.notice = self.text("Unknown viewer command. Use :help.", "不明なビューアコマンドです。:helpを使用してください。")
+        except (OSError, ValueError, urllib.error.URLError) as error:
+            self.notice = self.text(f"Search could not run: {error}", f"検索を実行できませんでした: {error}")
         return False
 
     def loop(self) -> None:
@@ -275,7 +460,7 @@ class Console:
                 self.apply("next")
             elif key in ("l", "L"):
                 self.language = "ja" if self.language == "en" else "en"
-            elif isinstance(key, str) and key in "1234":
+            elif isinstance(key, str) and key in "12345":
                 self.tab = int(key)
 
 

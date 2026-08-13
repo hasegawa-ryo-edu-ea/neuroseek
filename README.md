@@ -216,10 +216,19 @@ does not create a CUDA context, touch `metrics.jsonl`, or signal the trainer.
 This makes it safe while an independent training job uses the GPU.
 
 Press `r` to execute the loaded model on an immutable validation task, `n` for
-the next task, `1`–`4` for Search/Path/Proof/System, `l` for language, and
+the next task, `1`–`5` for Words/Model/Path/Proof/System, `l` for language, and
 `:` for commands such as `:run 3`, `:lang ja`, and `:quit`. The displayed
 operator lattice, candidates, answer, and proof state come from that actual
 policy execution; the reference answer remains outside the model input.
+
+The first **Words** page is for your own terms, not a prerecorded task. Type
+`:` and run `:find Japan` (or `:find 日本`). The console resolves the word to
+Wikidata Q-ID candidates, highlights candidates present in the local graph,
+and expands real outgoing local edges. Use `:use 2` to choose another listed
+candidate, then `:rel capital` (or `:rel 首都`) to resolve a relation to a P-ID
+and filter the displayed local edges. Name resolution uses the public
+Wikidata API; all graph traversal, targets, and evidence remain local and
+read-only. Without network access, Q/P IDs can still be entered directly.
 
 ## How to interpret a run
 
