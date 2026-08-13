@@ -91,10 +91,28 @@ class App:
             "graph": {"entities": self.graph.manifest.entity_count, "relations": self.graph.manifest.relation_count, "triples": self.graph.manifest.original_triples},
         }
 
-    def policy(self, task: int) -> dict[str, Any]:
+    def policy(self, task: int, language: str) -> dict[str, Any]:
         command = [sys.executable, "scripts/live_query.py", "--index", str(max(0, task))]
         result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=120, check=True)
-        return json.loads(result.stdout)
+        payload = json.loads(result.stdout)
+        entity_rows: list[dict[str, Any]] = []
+        relation_rows: list[dict[str, Any]] = []
+        entity_rows.extend((payload["query"]["source"], payload["reference_answer"]))
+        entity_rows.extend(payload["outcome"].get("proof_path", []))
+        if payload["outcome"].get("answer"):
+            entity_rows.append(payload["outcome"]["answer"])
+        relation_rows.extend(payload["query"].get("relations", []))
+        for step in payload.get("steps", []):
+            entity_rows.extend(step.get("frontier_sample", []))
+        try:
+            labels = wikidata_labels([str(row["identifier"]) for row in entity_rows + relation_rows], language)
+        except OSError:
+            labels = {}
+        for row in entity_rows + relation_rows:
+            identifier = str(row["identifier"])
+            if identifier in labels:
+                row["label"] = labels[identifier]
+        return payload
 
 
 def make_handler(app: App, language: str):
@@ -128,7 +146,7 @@ def make_handler(app: App, language: str):
                 elif parsed.path == "/api/graph":
                     self.send_json(app.graph_view(query.get("entity", [""])[0], query.get("relation", [""])[0], chosen_language))
                 elif parsed.path == "/api/policy":
-                    self.send_json(app.policy(int(query.get("task", ["0"])[0])))
+                    self.send_json(app.policy(int(query.get("task", ["0"])[0]), chosen_language))
                 else:
                     self.send_json({"error": "unknown endpoint"}, HTTPStatus.NOT_FOUND)
             except (OSError, ValueError, subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError) as error:

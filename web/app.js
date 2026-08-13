@@ -6,6 +6,8 @@ const strings = {
 let lang = 'ja';
 let selected = null;
 let graphData = null;
+let policyData = null;
+let graphMode = 'local';
 const $ = selector => document.querySelector(selector);
 const scene = { x: 0, y: 0, zoom: 1, drag: null, selected: 0, reveal: 0, animation: 0, nodes: [], size: { w: 0, h: 0 } };
 const t = key => strings[lang][key] || key;
@@ -95,6 +97,8 @@ async function loadGraph() {
   stage('EXPLORING');
   notice(lang === 'ja' ? 'ローカルグラフの実エッジを展開しています…' : 'Unfolding real local graph edges…');
   try {
+    graphMode = 'local';
+    policyData = null;
     graphData = await api(`/api/graph?entity=${encodeURIComponent(selected.identifier)}&relation=${encodeURIComponent($('#relation').value)}&lang=${lang}`);
     renderGraph(graphData, true);
     stage('EVIDENCE READY');
@@ -219,6 +223,53 @@ function draw(data) {
   scene.animation = requestAnimationFrame(paint);
 }
 
+function policyCandidates(data) {
+  const proofIds = new Set(data.outcome.proof_path.map(node => node.identifier));
+  const unique = new Map();
+  data.steps.forEach(step => step.frontier_sample.forEach(node => { if (!proofIds.has(node.identifier) && !unique.has(node.identifier)) unique.set(node.identifier, node); }));
+  return [...unique.values()].slice(0, 14);
+}
+
+function renderPolicyPath(data) {
+  graphMode = 'policy'; graphData = null; policyData = data; scene.reveal = performance.now(); resetView();
+  const valid = data.outcome.valid_proof;
+  $('#graph-title').textContent = `${valid ? 'VALID POLICY PROOF' : 'POLICY PATH'}  [${data.query.task_id}]`;
+  $('#entity-card').className = 'entity-card result-arrive';
+  $('#entity-card').innerHTML = `<strong>${valid ? 'VALID PROOF' : 'UNVERIFIED PATH'}</strong><p>${data.query.family} · ${data.steps.length} operators · ${data.outcome.credits} credits</p><p>${lang === 'ja' ? '方策が出した経路と、途中で見えた候補を同時表示しています。' : 'Showing the emitted policy path together with frontier candidates encountered during search.'}</p>`;
+  const candidates = policyCandidates(data);
+  $('#facts').innerHTML = candidates.map((node, index) => `<li class="reveal-item" style="--delay:${220 + index * 55}ms"><b>ALT</b> <em>${node.label}</em><br>→ ${node.identifier}</li>`).join('') || `<li>${lang === 'ja' ? '探索フロンティア候補はありません。' : 'No frontier alternatives were emitted.'}</li>`;
+  $('#graph-summary').innerHTML = [`<span>PROGRAM <b>${data.steps.length} OPS</b></span>`,`<span>PROOF <b>${data.outcome.proof_path.length} NODES</b></span>`,`<span>FRONTIER <b>${candidates.length} WORDS</b></span>`,`<span>VALID <b>${valid ? 'YES' : 'NO'}</b></span>`,`<span id="view-stat">VIEW <b>1.00×</b></span>`].join('');
+  $('#selected-edge').textContent = `${valid ? 'VERIFIED' : 'UNVERIFIED'} · ${data.outcome.answer ? data.outcome.answer.label : 'NO ANSWER'}`;
+  drawPolicy(data, candidates);
+  stage(valid ? 'POLICY PROOF' : 'POLICY PATH');
+  notice(lang === 'ja' ? '学習済み方策の実行経路を表示中です。灰色ノードは探索中に現れた別候補で、証明経路ではありません。' : 'Showing the learned policy path. Gray nodes are frontier alternatives, not proof-path nodes.');
+}
+
+function drawPolicy(data, candidates) {
+  cancelAnimationFrame(scene.animation);
+  const canvas = $('#graph-canvas'), ctx = canvas.getContext('2d'), dpr = devicePixelRatio || 1;
+  function paint(now) {
+    const rect = canvas.getBoundingClientRect(), width = rect.width, height = rect.height;
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) { canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr); }
+    scene.size = { w: width, h: height }; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
+    const path = data.outcome.proof_path.map((node, index, rows) => ({ ...node, level: 'proof', index, x: width * (.18 + .64 * index / Math.max(1, rows.length - 1)), y: height * .50 }));
+    const alternative = candidates.map((node, index) => ({ ...node, level: 'candidate', x: width * (.18 + .64 * ((index % 7) / 6)), y: height * (index < 7 ? .17 : .83) }));
+    scene.nodes = [...path, ...alternative]; const elapsed = now - scene.reveal;
+    ctx.save(); ctx.translate(scene.x, scene.y); ctx.scale(scene.zoom, scene.zoom); ctx.textAlign = 'center'; ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    path.slice(1).forEach((node, index) => { const visible = Math.max(0, Math.min(1, (elapsed - 280 - index * 420) / 360)); if (!visible) return; const previous = path[index]; const relation = data.query.relations[index] || data.query.relations[data.query.relations.length - 1]; ctx.globalAlpha = visible; ctx.strokeStyle = '#2fe6ff'; ctx.lineWidth = 2.4; ctx.setLineDash([10, 7]); ctx.lineDashOffset = -(now / 18); ctx.beginPath(); ctx.moveTo(previous.x + 16, previous.y); ctx.lineTo(node.x - 16, node.y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#2fe6ff'; ctx.fillText(relation ? relation.label : 'NEXT', (previous.x + node.x) / 2, previous.y - 18); });
+    alternative.forEach((node, index) => { const visible = Math.max(0, Math.min(1, (elapsed - 1050 - index * 85) / 300)); if (!visible || path.length < 2) return; const origin = path[Math.min(1, path.length - 1)]; ctx.globalAlpha = visible * .46; ctx.strokeStyle = '#8b949e'; ctx.lineWidth = 1; ctx.setLineDash([3, 7]); ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(node.x, node.y); ctx.stroke(); ctx.setLineDash([]); });
+    scene.nodes.forEach(node => { const index = node.level === 'proof' ? node.index : alternative.indexOf(node); const delay = node.level === 'proof' ? index * 420 : 1050 + index * 85; const visible = Math.max(0, Math.min(1, (elapsed - delay) / 330)); if (!visible) return; const proof = node.level === 'proof'; const final = proof && node.index === path.length - 1; const radius = proof ? (final ? 16 : 12) : 6; ctx.globalAlpha = visible; ctx.fillStyle = '#101010'; ctx.strokeStyle = final ? '#00d992' : proof ? '#2fe6ff' : '#8b949e'; ctx.lineWidth = proof ? 2.5 : 1.2; ctx.beginPath(); ctx.arc(node.x, node.y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); if (final) { ctx.globalAlpha = visible * (.18 + .12 * Math.sin(now / 180)); ctx.beginPath(); ctx.arc(node.x, node.y, radius + 10, 0, Math.PI * 2); ctx.stroke(); } ctx.globalAlpha = visible; ctx.fillStyle = proof ? '#f2f2f2' : '#bdbdbd'; ctx.fillText(node.label.slice(0, 18), node.x, node.y + 29); ctx.fillStyle = final ? '#00d992' : proof ? '#2fe6ff' : '#8b949e'; ctx.fillText(node.identifier, node.x, node.y + 43); });
+    ctx.restore(); ctx.globalAlpha = 1; scene.animation = requestAnimationFrame(paint);
+  }
+  scene.animation = requestAnimationFrame(paint);
+}
+
+async function showPolicyPath() {
+  $('#run-policy-path').disabled = true;
+  stage('RUNNING POLICY'); notice(lang === 'ja' ? '固定チェックポイントで学習済み方策をCPU実行中…' : 'Running the immutable policy checkpoint on CPU…');
+  try { renderPolicyPath(await api(`/api/policy?task=0&lang=${lang}`)); } catch (error) { notice(error.message); stage('ERROR'); } finally { $('#run-policy-path').disabled = false; }
+}
+
 function point(event) { const rect = $('#graph-canvas').getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; }
 function clampView() { const { w, h } = scene.size; scene.x = Math.max(-w * .65, Math.min(w * .65, scene.x)); scene.y = Math.max(-h * .65, Math.min(h * .65, scene.y)); }
 function graphSetup() {
@@ -243,8 +294,14 @@ function graphSetup() {
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     canvas.classList.remove('dragging');
     scene.drag = null;
-    if (moved >= 6 || !graphData) return;
+    if (moved >= 6) return;
     const world = { x: (p.x - scene.x) / scene.zoom, y: (p.y - scene.y) / scene.zoom };
+    if (graphMode === 'policy') {
+      const found = scene.nodes.find(node => Math.hypot(world.x - node.x, world.y - node.y) < 24);
+      if (found) notice(found.level === 'proof' ? `${found.label} [${found.identifier}] — ${lang === 'ja' ? '証明経路のノード' : 'proof-path node'}` : `${found.label} [${found.identifier}] — ${lang === 'ja' ? '探索中に現れたフロンティア候補' : 'frontier candidate encountered during search'}`);
+      return;
+    }
+    if (!graphData) return;
     const hit = scene.nodes.find(node => node.level === 1 && Math.hypot(world.x - node.x, world.y - node.y) < 24);
     if (hit) { scene.selected = graphData.edges.findIndex(edge => edge.target.id === hit.id); updateSelection(); expandSecond(scene.selected); const edge = graphData.edges[scene.selected]; notice(lang === 'ja' ? `${edge.relation.label} → ${edge.target.label} を選択しました。二段目を展開します。` : `Selected ${edge.relation.label} → ${edge.target.label}. Expanding its second hop.`); }
   };
@@ -266,7 +323,7 @@ async function runPolicy() {
   const out = $('#policy-result');
   out.innerHTML = `<p class="result-arrive">${lang === 'ja' ? '不変チェックポイントをCPUで実行中…' : 'Running immutable checkpoint on CPU…'}</p>`;
   try {
-    const data = await api('/api/policy?task=0'); const outcome = data.outcome;
+    const data = await api(`/api/policy?task=0&lang=${lang}`); const outcome = data.outcome;
     out.innerHTML = `<p class="${outcome.valid_proof ? 'result-valid' : 'result-invalid'} result-arrive">${outcome.valid_proof ? 'VALID PROOF' : 'NO VALID PROOF'}</p><p class="result-arrive" style="--delay:90ms">${lang === 'ja' ? '回答' : 'Answer'}: ${outcome.answer ? `${outcome.answer.label} [${outcome.answer.identifier}]` : 'none'}</p><p class="result-arrive" style="--delay:160ms">${lang === 'ja' ? '実行時間' : 'Elapsed'}: ${outcome.elapsed_ms} ms · ${lang === 'ja' ? 'クレジット' : 'credits'}: ${outcome.credits} · ${lang === 'ja' ? 'エッジ' : 'edges'}: ${outcome.edges_examined}</p><ol class="trace">${data.steps.map((step, index) => `<li class="reveal-item" style="--delay:${240 + index * 58}ms"><b>${String(step.index).padStart(2, '0')} ${step.operator}</b> ${step.trace}</li>`).join('')}</ol>`;
   } catch (error) { out.innerHTML = `<p class="result-invalid">${error.message}</p>`; }
 }
@@ -277,6 +334,7 @@ $('#query').addEventListener('keydown', event => { if (event.key === 'Enter') se
 $('#apply-filter').onclick = loadGraph;
 $('#relation').addEventListener('keydown', event => { if (event.key === 'Enter') loadGraph(); });
 $('#run-policy').onclick = runPolicy;
+$('#run-policy-path').onclick = showPolicyPath;
 $('#language').onclick = () => { lang = lang === 'ja' ? 'en' : 'ja'; applyLanguage(); };
 api('/api/health').then(() => { notice(lang === 'ja' ? '準備完了。単語またはQ-IDを入力してください。' : 'Ready. Enter a word or Q-ID.'); $('#graph-meta').textContent = 'LOCAL GRAPH / READY'; }).catch(error => notice(error.message));
 graphSetup();
