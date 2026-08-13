@@ -117,6 +117,24 @@ def cells(value: str) -> int:
     return sum(2 if unicodedata.east_asian_width(char) in {"W", "F", "A"} else 1 for char in value)
 
 
+def clip_cells(value: str, maximum: int) -> str:
+    """Clip by terminal cells so CJK copy never wraps into the footer."""
+    if cells(value) <= maximum:
+        return value
+    if value and len(set(value)) == 1:
+        return value[0] * maximum
+    result: list[str] = []
+    used = 0
+    content_limit = max(0, maximum - 1)
+    for char in value:
+        size = 2 if unicodedata.east_asian_width(char) in {"W", "F", "A"} else 1
+        if used + size > content_limit:
+            return "".join(result) + ("…" if maximum else "")
+        result.append(char)
+        used += size
+    return "".join(result)
+
+
 class Console:
     def __init__(self, screen: Any, graph: GraphMmap, model: NavigatorPolicy, tasks: list[tuple[QuerySpec, tuple[int, ...] | None]], checkpoint: Path, language: str):
         self.screen, self.graph, self.model, self.tasks, self.checkpoint = screen, graph, model, tasks, checkpoint
@@ -128,7 +146,7 @@ class Console:
         self.label_cache: dict[str, str] = {}
         self.command = ""
         self.command_mode = False
-        self.notice = self.text("r: execute the loaded policy", "r: 学習済み方策を実行")
+        self.notice = self.text("Press f to search a word. Press 2 for the learned-model demo.", "fで単語を検索します。学習済みモデルのデモは2番です。")
         self._colors()
 
     def text(self, english: str, japanese: str) -> str:
@@ -146,7 +164,7 @@ class Console:
             return
         try:
             style = curses.color_pair(pair) | (curses.A_BOLD if bold else 0)
-            self.screen.addnstr(row, max(0, column), value, max(0, width - column - 1), style)
+            self.screen.addstr(row, max(0, column), clip_cells(value, max(0, width - column - 1)), style)
         except curses.error:
             pass
 
@@ -218,6 +236,11 @@ class Console:
             # remain fully usable if the optional public lookup is unavailable.
             pass
 
+    def local_word_candidates(self) -> list[tuple[int, WordCandidate]]:
+        if self.word is None:
+            return []
+        return [(index, candidate) for index, candidate in enumerate(self.word.candidates) if candidate.local_id is not None]
+
     def execute(self) -> None:
         query, _ = self.tasks[self.task_index]
         env = GraphSearchEnv(self.graph, query, (), cuda_session=None)
@@ -262,37 +285,61 @@ class Console:
         return 6
 
     def page_words(self, row: int) -> None:
-        self.write(row, 2, self.text("WORD → WIKIDATA → LOCAL GRAPH", "単語 → WIKIDATA → ローカルグラフ"), 1, True)
-        self.write(row + 1, 2, self.text("Start with :find Japan  ·  Then optionally filter with :rel capital", ":find 日本 から開始  ·  必要なら :rel 首都 で絞り込み"), 6)
+        height, _width = self.screen.getmaxyx()
+        compact = height < 32
+        self.write(row, 2, self.text("SEARCH THE KNOWLEDGE GRAPH", "知識グラフを検索"), 1, True)
+        self.write(row + 1, 2, self.text("1 Find a word   →   2 Pick an available result   →   3 Explore its real facts", "1 語を探す   →   2 探索できる候補を選ぶ   →   3 実際の事実をたどる"), 6)
         if self.word is None:
-            self.write(row + 4, 4, self.text("TYPE A WORD", "単語を入力"), 4, True)
-            self.write(row + 6, 4, self.text(":find Japan", ":find 日本"), 3, True)
-            self.write(row + 8, 4, self.text("The name is resolved to a Q-ID, then local immutable graph edges are explored.", "名称をQ-IDへ解決してから、不変のローカルグラフエッジを探索します。"), 6)
+            self.write(row + 4, 4, self.text("START A SEARCH", "検索をはじめる"), 4, True)
+            self.write(row + 6, 4, self.text("Press  f  and type a word", "f を押して、調べたい語を入力"), 6)
+            self.write(row + 8, 7, self.text(":find Japan", ":find 日本"), 3, True)
+            self.write(row + 11, 4, self.text("You can also use English, Japanese, or a Wikidata ID such as Q17.", "日本語・英語・Q17のようなWikidata IDを使えます。"), 6)
+            self.write(row + 13, 4, self.text("No model is run in this page: it is a direct read-only walk of real graph facts.", "このページではモデルを実行せず、実グラフの事実を読み取り専用で直接たどります。"), 6)
             return
-        self.write(row + 3, 2, f"{self.text('INPUT', '入力')}  {self.word.term}", 3, True)
-        self.write(row + 4, 2, self.text("WIKIDATA CANDIDATES", "WIKIDATA候補"), 4, True)
-        for index, candidate in enumerate(self.word.candidates[:5]):
+        self.write(row + 3, 2, f"{self.text('SEARCHED FOR', '検索語')}  {self.word.term}", 3, True)
+        available = self.local_word_candidates()
+        skipped = len(self.word.candidates) - len(available)
+        self.write(row + 5, 2, self.text("CHOOSE A RESULT READY TO EXPLORE", "探索できる候補を選ぶ"), 4, True)
+        if not available:
+            self.write(row + 7, 4, self.text("This word exists in Wikidata, but its results were not downloaded into this demo graph.", "この語はWikidataにありますが、該当候補はこのデモ用グラフに収録されていません。"), 5)
+            self.write(row + 9, 4, self.text("Try a different candidate, or enter a known Q-ID directly.", "別の語を試すか、既知のQ-IDを直接入力してください。"), 6)
+            return
+        candidate_limit = 2 if compact else 4
+        for display_index, (index, candidate) in enumerate(available[:candidate_limit]):
             selected = index == self.word.selected
-            present = candidate.local_id is not None
             marker = "▶" if selected else "·"
-            local = self.text("LOCAL", "ローカル") if present else self.text("not in local graph", "ローカルグラフ外")
-            self.write(row + 5 + index, 4, f"{marker} [{index + 1}] {candidate.label} [{candidate.identifier}]  {local}", 2 if selected else (6 if present else 5), selected)
-            if candidate.description:
-                self.write(row + 5 + index, 58, candidate.description, 6)
+            candidate_row = row + 6 + display_index * (1 if compact else 2)
+            self.write(candidate_row, 4, f"{marker} [{index + 1}] {candidate.label} [{candidate.identifier}]", 2 if selected else 6, selected)
+            if not compact:
+                self.write(candidate_row + 1, 8, candidate.description or self.text("Ready to explore in this graph", "このグラフで探索できます"), 6)
+        candidate_bottom = row + 6 + min(len(available), candidate_limit) * (1 if compact else 2)
+        more_ready = len(available) - min(len(available), candidate_limit)
+        if more_ready:
+            self.write(candidate_bottom, 4, self.text(f"{more_ready} more results are ready to explore — choose them with :use N.", f"ほかに {more_ready} 件の探索可能な候補があります。:use Nで選択できます。"), 6)
+            candidate_bottom += 1
+        if skipped and not compact:
+            self.write(candidate_bottom, 4, self.text(f"{skipped} name matches are known by Wikidata but were not downloaded into this demo graph.", f"{skipped} 件はWikidataにありますが、このデモ用グラフには収録されていません。"), 6)
         if self.word.selected is None:
             return
         selected = self.word.candidates[self.word.selected]
-        after = row + 12
-        relation = self.word.relation.label if self.word.relation else self.text("all outgoing relations", "すべての出力関係")
-        self.write(after, 2, f"{self.text('LOCAL EXPANSION', 'ローカル展開')}  {selected.label}  →  {relation}", 1, True)
+        after = max(row + (10 if compact else 15), candidate_bottom + 1)
+        relation = self.word.relation.label if self.word.relation else self.text("all facts", "すべての事実")
+        self.write(after, 2, f"{self.text('REAL FACTS ABOUT', '実グラフ上の事実')}  {selected.label}  ·  {relation}", 1, True)
+        if not compact:
+            self.write(after + 1, 4, self.text("To narrow this list, press : and type :rel capital", "絞り込むには : を押して :rel 首都 と入力"), 6)
         edges = self.word.neighbors or []
+        edge_start = after + (2 if compact else 3)
+        edge_limit = max(1, min(7, height - 4 - edge_start))
         if not edges:
-            self.write(after + 2, 4, self.text("No matching local edges.", "一致するローカルエッジはありません。"), 5)
-        for index, (node, relation_id) in enumerate(edges[:7]):
-            self.write(after + 2 + index, 5, f"{index + 1:02}  {self.relation(relation_id)}", 4)
-            self.write(after + 2 + index, 40, "→", 1, True)
-            self.write(after + 2 + index, 44, self.entity(node), 3)
-        self.write(after + 10, 2, f"{self.text('NAME LOOKUP', '名称解決')} {self.word.elapsed_ms:.1f} ms · {self.text('GRAPH', 'グラフ')} mmap read-only · {self.text('CUDA', 'CUDA')} OFF", 6)
+            self.write(edge_start, 4, self.text("No matching facts in the local graph.", "ローカルグラフに一致する事実はありません。"), 5)
+        for index, (node, relation_id) in enumerate(edges[:edge_limit]):
+            self.write(edge_start + index, 5, f"{index + 1:02}", 4)
+            self.write(edge_start + index, 10, self.relation(relation_id), 4)
+            self.write(edge_start + index, 38, "→", 1, True)
+            self.write(edge_start + index, 42, self.entity(node), 3)
+        status_row = edge_start + edge_limit + 1
+        if status_row < height - 3:
+            self.write(status_row, 2, f"{self.text('SAFE MODE', '安全モード')}  CPU · {self.text('GRAPH DATA', 'グラフデータ')} read-only · CUDA off · {self.text('NAME LOOKUP', '名称解決')} {self.word.elapsed_ms:.1f} ms", 6)
 
     def page_model(self, row: int) -> None:
         query, _ = self.tasks[self.task_index]
@@ -383,7 +430,7 @@ class Console:
             self.page_system(row)
         height, width = self.screen.getmaxyx()
         self.write(height - 3, 1, "─" * max(1, width - 2), 1)
-        prompt = self.command if self.command_mode else self.text("type :help for local commands", ":help でローカルコマンドを表示")
+        prompt = self.command if self.command_mode else self.text("f search a word · :help commands", "fで単語を検索 · :helpでコマンド一覧")
         self.write(height - 2, 2, "›", 1, True)
         self.write(height - 2, 4, prompt, 6 if not self.command_mode else 3)
         self.write(height - 1, 2, self.notice, 6)
@@ -454,6 +501,8 @@ class Console:
                 return
             if key == ":":
                 self.command_mode, self.command = True, ":"
+            elif key in ("f", "F"):
+                self.command_mode, self.command = True, ":find "
             elif key in ("r", "R"):
                 self.execute()
             elif key in ("n", "N"):

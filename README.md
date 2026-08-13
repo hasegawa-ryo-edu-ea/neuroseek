@@ -221,14 +221,18 @@ the next task, `1`–`5` for Words/Model/Path/Proof/System, `l` for language, an
 operator lattice, candidates, answer, and proof state come from that actual
 policy execution; the reference answer remains outside the model input.
 
-The first **Words** page is for your own terms, not a prerecorded task. Type
-`:` and run `:find Japan` (or `:find 日本`). The console resolves the word to
-Wikidata Q-ID candidates, highlights candidates present in the local graph,
-and expands real outgoing local edges. Use `:use 2` to choose another listed
-candidate, then `:rel capital` (or `:rel 首都`) to resolve a relation to a P-ID
-and filter the displayed local edges. Name resolution uses the public
-Wikidata API; all graph traversal, targets, and evidence remain local and
-read-only. Without network access, Q/P IDs can still be entered directly.
+The first **Words** page is for your own terms, not a prerecorded task. Press
+`f`, type `Japan` (or `日本`), then press Enter. The console first shows only
+results that are **ready to explore** in the downloaded graph, then displays
+their real outgoing facts. Use `:use 2` for another result and `:rel capital`
+(or `:rel 首都`) to filter facts by relation.
+
+Wikidata may know a name that this fixed demo dataset did not download. That
+does not mean the item is wrong or nonexistent; it simply cannot be explored
+locally in this experiment, so it is kept out of the main candidate list.
+Name resolution uses the public Wikidata API; all graph traversal, targets,
+and evidence remain local and read-only. Without network access, Q/P IDs can
+still be entered directly.
 
 ## How to interpret a run
 
