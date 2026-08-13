@@ -75,6 +75,24 @@ services:
     # trainer lifecycle to an SSH terminal.
     command: ["bash", "-lc", "exec neuroseek-tui --attach-current"]
 
+  search:
+    # Presentation/query service: deliberately CPU-only and short-lived.  It
+    # opens immutable graph/checkpoint inputs read-only and never joins the
+    # trainer's CUDA context, preventing inference demos from perturbing a
+    # concurrent training job.
+    image: neuroseek:jetson-r36.3-l4tml-r36.2
+    profiles: ["search"]
+    network_mode: host
+    init: true
+    working_dir: /workspace
+    environment:
+      CUDA_VISIBLE_DEVICES: ""
+      NVIDIA_VISIBLE_DEVICES: none
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - .:/workspace:ro
+    command: ["bash", "-lc", "exec python3 scripts/live_query.py"]
+
 volumes:
   cargo-cache:
   rust-target:

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Run exactly one read-only learned-policy graph query without acquiring CUDA.
+set -Eeuo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$root"
+
+docker_cmd=(docker)
+if ! docker info >/dev/null 2>&1; then
+  docker_cmd=(sudo -n docker)
+fi
+
+exec "${docker_cmd[@]}" compose -f compose.yaml run --rm --no-deps search python3 scripts/live_query.py "$@"

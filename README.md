@@ -187,15 +187,39 @@ read-only Rust TUI and attach it to the current run:
 ```
 
 Run `./watch ja` for Japanese. The helper builds only when needed, attaches to
-the current run, and opens the cinematic full-screen view. It draws an
-amida-like lattice from the latest durable search program, plus proof/search,
-policy, and Jetson telemetry. It reads only `metrics.jsonl`; `Ctrl-C` closes
-the display and never pauses, resumes, or otherwise controls the trainer.
+the current run, and opens the cinematic full-screen view. It draws a
+fixed-height program tree from the latest durable search program, plus
+proof/search, policy, and Jetson telemetry. The tree reserves ten stable rows,
+so the panels below keep their position while live trace data refreshes. It
+reads only `metrics.jsonl`; `Ctrl-C` closes the display and never pauses,
+resumes, or otherwise controls the trainer.
 
 Use `1` Explore, `2` Trace, `3` System, and `4` Model to switch pages. Press
 `l` to toggle the display language. `/` opens a local Codex-style command bar:
 `/help`, `/lang ja`, `/lang en`, and `/quit` are supported. Add `--once` for a
 single screenshot-friendly frame or `--no-color` for a plain log capture.
+
+`./up.sh` now opens this monitor automatically when a healthy trainer is
+already detached. Use `./up.sh --no-tui` when you only need launcher status.
+
+### Real model-search console
+
+For the video/demo search experience, launch the learned-policy console:
+
+```bash
+./search
+```
+
+Use `./search ja` for Japanese. This is a separate CPU-only, read-only
+process: it loads the immutable presentation checkpoint and the mmap graph but
+does not create a CUDA context, touch `metrics.jsonl`, or signal the trainer.
+This makes it safe while an independent training job uses the GPU.
+
+Press `r` to execute the loaded model on an immutable validation task, `n` for
+the next task, `1`–`4` for Search/Path/Proof/System, `l` for language, and
+`:` for commands such as `:run 3`, `:lang ja`, and `:quit`. The displayed
+operator lattice, candidates, answer, and proof state come from that actual
+policy execution; the reference answer remains outside the model input.
 
 ## How to interpret a run
 

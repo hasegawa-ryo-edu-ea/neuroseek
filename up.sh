@@ -75,9 +75,10 @@ if [[ "$trainer_running" == 1 ]]; then
   [[ -d "$run_dir" ]] || { echo "running trainer has invalid run directory: $run_dir" >&2; exit 1; }
   echo "NEUROSEEK trainer already detached: $run_dir"
   if [[ "$no_tui" == 0 && -t 1 ]]; then
-    # runtime_compose is a shell function, not an executable.  Keep the
-    # detached trainer independent and run the viewer in this terminal.
-    runtime_compose run --rm tui neuroseek-tui "/workspace/$run_dir/metrics.jsonl"
+    # The host-side monitor is read-only and keeps its full-screen keyboard
+    # UI separate from Docker/Trainer lifecycle control.  It attaches through
+    # runs/current.json and never creates another GPU container.
+    exec ./watch
   fi
   exit 0
 fi
@@ -186,8 +187,7 @@ fi
 echo "NEUROSEEK trainer detached: $run_dir"
 
 if [[ "$no_tui" == 0 && -t 1 ]]; then
-  # runtime_compose is a Bash function, so it cannot be the target of exec.
-  # Calling it normally preserves the detached trainer while the TUI owns this
-  # terminal; closing SSH only ends this viewer process.
-  runtime_compose run --rm tui neuroseek-tui "/workspace/$run_dir/metrics.jsonl"
+  # The trainer remains detached; closing this host-side viewer only closes
+  # the monitor. It never sends a signal or control command to the trainer.
+  exec ./watch
 fi

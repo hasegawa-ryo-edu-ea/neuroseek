@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Full-screen real-model search console; isolated from the trainer's CUDA work.
+set -Eeuo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$root"
+
+language=en
+if [[ "${1:-}" == "ja" || "${1:-}" == "en" ]]; then
+  language=$1
+  shift
+fi
+
+docker_cmd=(docker)
+if ! docker info >/dev/null 2>&1; then
+  docker_cmd=(sudo -n docker)
+fi
+
+exec "${docker_cmd[@]}" compose -f compose.yaml run --rm --no-deps search python3 scripts/search_console.py --lang "$language" "$@"
