@@ -10,8 +10,10 @@ use std::{
     fs::File,
     io::{self, IsTerminal, Read, Seek, SeekFrom, Write},
     path::Path,
+    process::Command,
+    sync::mpsc,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const MISSING: &str = "n/a";
@@ -21,6 +23,26 @@ const TAIL_BYTES: u64 = 64 * 1024;
 enum Language {
     English,
     Japanese,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Screen {
+    Explore,
+    Trace,
+    System,
+    Model,
+}
+
+impl Screen {
+    fn from_key(key: u8) -> Option<Self> {
+        match key {
+            b'1' => Some(Self::Explore),
+            b'2' => Some(Self::Trace),
+            b'3' => Some(Self::System),
+            b'4' => Some(Self::Model),
+            _ => None,
+        }
+    }
 }
 
 impl Language {
@@ -299,6 +321,7 @@ fn phase_rail(phase: &str, color: bool) -> String {
         .join("─")
 }
 
+#[allow(dead_code)]
 fn showcase_row(label: &str, value: &str, accent: &str, width: usize, color: bool) {
     let raw_label = format!("{label:<14}");
     let raw_value = clipped(value, width.saturating_sub(22));
@@ -314,6 +337,7 @@ fn showcase_row(label: &str, value: &str, accent: &str, width: usize, color: boo
 /// The showcase is intentionally still a read-only JSONL visualizer.  It is
 /// designed for an audience-facing terminal without adding a control path to
 /// the detached trainer.
+#[allow(dead_code)]
 fn draw_showcase(events: &[Event], color: bool, tty: bool, language: Language) {
     let width = terminal_dimension("COLUMNS", 120).clamp(80, 150);
     if tty {
@@ -798,6 +822,551 @@ fn draw(events: &[Event], color: bool, tty: bool, language: Language) {
     let _ = io::stdout().flush();
 }
 
+fn label(screen: Screen, language: Language) -> &'static str {
+    match screen {
+        Screen::Explore => t(language, "EXPLORE", "探索"),
+        Screen::Trace => t(language, "TRACE", "経路"),
+        Screen::System => t(language, "SYSTEM", "システム"),
+        Screen::Model => t(language, "MODEL", "モデル"),
+    }
+}
+
+fn operator_steps(trace: &str) -> Vec<&str> {
+    trace
+        .split(" -> ")
+        .filter(|step| !step.trim().is_empty())
+        .take(10)
+        .collect()
+}
+
+fn operation_kind(step: &str) -> &'static str {
+    if step.starts_with("SEED") {
+        "SEED"
+    } else if step.starts_with("EXPAND") {
+        "EXPAND"
+    } else if step.starts_with("VERIFY") {
+        "VERIFY"
+    } else if step.starts_with("FILTER") {
+        "FILTER"
+    } else if step.starts_with("INTERSECT") {
+        "INTERSECT"
+    } else if step.starts_with("BACKTRACK") {
+        "BACKTRACK"
+    } else {
+        "OP"
+    }
+}
+
+fn operation_lane(step: &str) -> usize {
+    step.bytes()
+        .fold(0usize, |state, byte| state.wrapping_add(byte as usize))
+        % 4
+}
+
+fn render_lattice(trace: &str, color: bool, language: Language, width: usize) {
+    let steps = operator_steps(trace);
+    println!(
+        "  {}",
+        paint(
+            t(
+                language,
+                "SEARCH LATTICE  ·  durable program path",
+                "探索ラティス  ·  永続プログラム経路"
+            ),
+            "1;96",
+            color
+        )
+    );
+    println!("  {}", paint(t(language, "Every junction is drawn from the latest SearchTraceEvent; no simulated path is shown.", "すべての分岐は最新のSearchTraceEventから描画されています。模擬経路は表示しません。"), "2;37", color));
+    if steps.is_empty() {
+        println!(
+            "\n  {}",
+            t(
+                language,
+                "Awaiting a durable search trace…",
+                "永続検索トレースを待機しています…"
+            )
+        );
+        return;
+    }
+    let lanes = [4usize, 24, 44, 64];
+    let mut previous = operation_lane(steps[0]);
+    for (index, step) in steps.iter().enumerate() {
+        let lane = operation_lane(step);
+        if index > 0 {
+            let low = lanes[previous].min(lanes[lane]);
+            let high = lanes[previous].max(lanes[lane]);
+            let branch = if lane > previous {
+                '╲'
+            } else if lane < previous {
+                '╱'
+            } else {
+                '│'
+            };
+            println!(
+                "  {:low$}{}{}",
+                "",
+                paint(&branch.to_string(), "1;35", color),
+                paint(
+                    &"─".repeat(high.saturating_sub(low + 1).min(width / 2)),
+                    "2;36",
+                    color
+                )
+            );
+        }
+        let marker = if index + 1 == steps.len() {
+            "◉"
+        } else {
+            "●"
+        };
+        let text = clipped(step, width.saturating_sub(lanes[lane] + 20));
+        println!(
+            "  {}{} {}  {}",
+            " ".repeat(lanes[lane]),
+            paint(
+                marker,
+                if index + 1 == steps.len() {
+                    "1;95"
+                } else {
+                    "1;36"
+                },
+                color
+            ),
+            paint(&format!("{:02}", index + 1), "2;37", color),
+            paint(&text, "1;97", color)
+        );
+        previous = lane;
+    }
+}
+
+fn render_explore(
+    events: &[Event],
+    event: &Event,
+    trace: &Event,
+    color: bool,
+    language: Language,
+    width: usize,
+) {
+    println!(
+        "\n  {}  {}",
+        paint(t(language, "LIVE QUERY", "ライブクエリ"), "1;97", color),
+        paint(trace.get("task_id"), "1;36", color)
+    );
+    println!(
+        "  {}  {}     {}  {}     {}  {}",
+        t(language, "FAMILY", "系統"),
+        paint(trace.get("family"), "1;96", color),
+        t(language, "RESULT", "結果"),
+        paint(
+            trace.get("result"),
+            if trace.get("result") == "VALID" {
+                "1;92"
+            } else {
+                "1;93"
+            },
+            color
+        ),
+        t(language, "REWARD", "報酬"),
+        paint(event.get("reward"), "1;97", color)
+    );
+    println!();
+    render_lattice(trace.get("trace"), color, language, width);
+    println!();
+    println!(
+        "  {}  {}  {}  {}  {}  {}",
+        t(language, "SUCCESS", "成功率"),
+        meter(event.number("success_rate"), 1.0, 20, color, true),
+        t(language, "PROOF", "証明"),
+        meter(event.number("proof_validity"), 1.0, 20, color, true),
+        t(language, "CREDITS", "クレジット"),
+        paint(event.get("credits_per_query"), "1;93", color)
+    );
+    println!(
+        "  {}  {}",
+        t(language, "REWARD PULSE", "報酬パルス"),
+        paint(&sparkline(events, "reward", false), "1;92", color)
+    );
+}
+
+fn render_trace(event: &Event, trace: &Event, color: bool, language: Language, width: usize) {
+    println!(
+        "\n  {}",
+        paint(
+            t(language, "PROGRAM INSPECTOR", "プログラムインスペクタ"),
+            "1;97",
+            color
+        )
+    );
+    println!(
+        "  {}  {}",
+        t(language, "TASK", "タスク"),
+        paint(trace.get("task_id"), "1;36", color)
+    );
+    println!(
+        "  {}  {}",
+        t(language, "FAMILY", "系統"),
+        trace.get("family")
+    );
+    println!(
+        "  {}  {}",
+        t(language, "PHASE", "フェーズ"),
+        paint(event.get("phase"), "1;95", color)
+    );
+    println!();
+    for (index, step) in operator_steps(trace.get("trace")).iter().enumerate() {
+        let kind = operation_kind(step);
+        println!(
+            "  {} {}  {:<11}  {}",
+            paint(
+                if index + 1 == operator_steps(trace.get("trace")).len() {
+                    "◆"
+                } else {
+                    "◇"
+                },
+                "1;36",
+                color
+            ),
+            paint(&format!("{:02}", index + 1), "2;37", color),
+            paint(kind, "1;95", color),
+            clipped(step, width.saturating_sub(28))
+        );
+    }
+    println!();
+    println!(
+        "  {}",
+        paint(t(language, "OPERATOR MIX", "演算子ミックス"), "1;96", color)
+    );
+    println!(
+        "  {}",
+        clipped(event.get("operator_distribution"), width.saturating_sub(4))
+    );
+    println!();
+    println!(
+        "  {}",
+        paint(
+            t(
+                language,
+                "The viewer uses only durable events already appended by the trainer.",
+                "このビューアは学習器が追記済みの永続イベントだけを使用します。"
+            ),
+            "2;37",
+            color
+        )
+    );
+}
+
+fn render_system(event: &Event, color: bool, language: Language) {
+    println!(
+        "\n  {}",
+        paint(
+            t(language, "JETSON TELEMETRY", "JETSON テレメトリ"),
+            "1;97",
+            color
+        )
+    );
+    println!("\n  CUDA   {}", paint(event.get("cuda"), "1;92", color));
+    println!(
+        "  TEMP   {}  {} °C",
+        meter(event.number("temperature_c"), 85.0, 32, color, false),
+        paint(event.get("temperature_c"), "1;97", color)
+    );
+    let ram_ratio = match (event.number("ram_used_gib"), event.number("ram_total_gib")) {
+        (Some(used), Some(total)) if total > 0.0 => Some(used / total),
+        _ => None,
+    };
+    println!(
+        "  RAM    {}  {}/{} GiB",
+        meter(ram_ratio, 1.0, 32, color, false),
+        event.get("ram_used_gib"),
+        event.get("ram_total_gib")
+    );
+    println!();
+    println!(
+        "  {}",
+        paint(t(language, "SEARCH COST", "探索コスト"), "1;96", color)
+    );
+    println!(
+        "  {}  {}     {}  {}     {}  {}",
+        t(language, "NODES", "ノード"),
+        event.get("nodes_per_query"),
+        t(language, "EDGES", "エッジ"),
+        event.get("edges_per_query"),
+        t(language, "CREDITS", "クレジット"),
+        event.get("credits_per_query")
+    );
+    println!();
+    println!("  {}", paint(t(language, "Only telemetry emitted in metrics.jsonl is displayed; CPU/GPU utilization is never inferred.", "metrics.jsonlが出力したテレメトリだけを表示します。CPU/GPU使用率は推測しません。"), "2;37", color));
+}
+
+fn render_model(events: &[Event], event: &Event, color: bool, language: Language) {
+    println!(
+        "\n  {}",
+        paint(
+            t(language, "POLICY / VALUE FIELD", "方策 / 価値フィールド"),
+            "1;97",
+            color
+        )
+    );
+    println!(
+        "\n  {}  {}     {}  {}",
+        t(language, "POLICY LOSS", "方策損失"),
+        event.get("policy_loss"),
+        t(language, "VALUE LOSS", "価値損失"),
+        event.get("value_loss")
+    );
+    println!(
+        "  {}  {}     KL  {}     {}  {}",
+        t(language, "ENTROPY", "エントロピー"),
+        event.get("entropy"),
+        event.get("kl"),
+        t(language, "GRADIENT", "勾配"),
+        event.get("gradient_norm")
+    );
+    println!();
+    println!(
+        "  {}  {}",
+        t(language, "CURRICULUM", "カリキュラム"),
+        phase_rail(event.get("phase"), color)
+    );
+    println!(
+        "  {}  {}",
+        t(language, "ACTIVE", "現在"),
+        paint(event.get("phase"), "1;95", color)
+    );
+    println!();
+    println!(
+        "  {}  {}",
+        t(language, "REWARD HISTORY", "報酬履歴"),
+        paint(&sparkline(events, "reward", false), "1;92", color)
+    );
+    println!(
+        "  {}  {}",
+        t(language, "COST HISTORY", "コスト履歴"),
+        paint(&sparkline(events, "credits_per_query", true), "1;93", color)
+    );
+}
+
+fn draw_cinematic(
+    events: &[Event],
+    screen: Screen,
+    input: &str,
+    notice: &str,
+    color: bool,
+    tty: bool,
+    language: Language,
+) {
+    let width = terminal_dimension("COLUMNS", 120).clamp(90, 180);
+    if tty {
+        print!("\x1b[H\x1b[2J");
+    }
+    let Some(event) = latest_display_event(events) else {
+        println!(
+            "NEUROSEEK // {}",
+            t(
+                language,
+                "waiting for durable metrics",
+                "永続メトリクスを待機しています"
+            )
+        );
+        return;
+    };
+    let trace = latest(events, "SearchTraceEvent").unwrap_or(event);
+    println!(
+        " {}  {}",
+        paint("NEUROSEEK", "1;96", color),
+        paint(
+            t(language, "KNOWLEDGE SEARCH CONSOLE", "知識探索コンソール"),
+            "2;37",
+            color
+        )
+    );
+    println!(
+        " {}  {}  ·  {}  {}  ·  {}  {}",
+        paint("●", "1;92", color),
+        t(language, "LIVE", "ライブ"),
+        t(language, "STEP", "ステップ"),
+        event.get("global_step"),
+        t(language, "PHASE", "フェーズ"),
+        paint(event.get("phase"), "1;95", color)
+    );
+    println!(
+        " {}",
+        paint(&"─".repeat(width.saturating_sub(2)), "2;36", color)
+    );
+    for (number, tab) in [
+        (1, Screen::Explore),
+        (2, Screen::Trace),
+        (3, Screen::System),
+        (4, Screen::Model),
+    ] {
+        let active = tab == screen;
+        print!(
+            " {} {}",
+            paint(
+                &format!("[{number}]"),
+                if active { "1;97" } else { "2;37" },
+                color
+            ),
+            paint(
+                label(tab, language),
+                if active { "1;96" } else { "2;37" },
+                color
+            )
+        );
+        if number < 4 {
+            print!("   ");
+        }
+    }
+    println!(
+        "     {}",
+        paint(
+            t(
+                language,
+                "l language  / command  q quit",
+                "l 言語  / コマンド  q 終了"
+            ),
+            "2;37",
+            color
+        )
+    );
+    println!(
+        " {}",
+        paint(&"─".repeat(width.saturating_sub(2)), "2;36", color)
+    );
+    match screen {
+        Screen::Explore => render_explore(events, event, trace, color, language, width),
+        Screen::Trace => render_trace(event, trace, color, language, width),
+        Screen::System => render_system(event, color, language),
+        Screen::Model => render_model(events, event, color, language),
+    }
+    let min_lines = terminal_dimension("LINES", 40).saturating_sub(22);
+    for _ in 0..min_lines {
+        println!();
+    }
+    println!(
+        " {}",
+        paint(&"─".repeat(width.saturating_sub(2)), "2;36", color)
+    );
+    let prompt = if input.is_empty() {
+        t(
+            language,
+            "type /help for viewer commands",
+            " /help でビューアコマンドを表示",
+        )
+    } else {
+        input
+    };
+    println!(
+        " {} {}",
+        paint("›", "1;96", color),
+        paint(
+            prompt,
+            if input.is_empty() { "2;37" } else { "1;97" },
+            color
+        )
+    );
+    println!(" {}", paint(notice, "2;37", color));
+    let _ = io::stdout().flush();
+}
+
+struct TerminalGuard {
+    active: bool,
+}
+
+impl TerminalGuard {
+    fn enter(tty: bool) -> Self {
+        if !tty {
+            return Self { active: false };
+        }
+        let active = Command::new("stty")
+            .args(["-icanon", "-echo", "min", "0", "time", "0"])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+        if active {
+            print!("\x1b[?1049h\x1b[?25l");
+            let _ = io::stdout().flush();
+        }
+        Self { active }
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = Command::new("stty").arg("sane").status();
+            print!("\x1b[?25h\x1b[?1049l");
+            let _ = io::stdout().flush();
+        }
+    }
+}
+
+fn key_channel() -> mpsc::Receiver<u8> {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut stdin = io::stdin();
+        let mut byte = [0_u8; 1];
+        loop {
+            if stdin
+                .read(&mut byte)
+                .ok()
+                .filter(|count| *count > 0)
+                .is_some()
+                && sender.send(byte[0]).is_err()
+            {
+                break;
+            }
+        }
+    });
+    receiver
+}
+
+fn apply_viewer_command(
+    command: &str,
+    screen: &mut Screen,
+    language: &mut Language,
+    notice: &mut String,
+) -> bool {
+    match command.trim().trim_start_matches('/') {
+        "q" | "quit" | "exit" => true,
+        "help" => {
+            *notice = "1 explore · 2 trace · 3 system · 4 model · l language · /lang ja|en · /quit"
+                .into();
+            false
+        }
+        "explore" | "1" => {
+            *screen = Screen::Explore;
+            false
+        }
+        "trace" | "2" => {
+            *screen = Screen::Trace;
+            false
+        }
+        "system" | "3" => {
+            *screen = Screen::System;
+            false
+        }
+        "model" | "4" => {
+            *screen = Screen::Model;
+            false
+        }
+        "lang ja" | "ja" => {
+            *language = Language::Japanese;
+            *notice = "表示言語: 日本語".into();
+            false
+        }
+        "lang en" | "en" => {
+            *language = Language::English;
+            *notice = "Display language: English".into();
+            false
+        }
+        _ => {
+            *notice = "Unknown local viewer command. Type /help.".into();
+            false
+        }
+    }
+}
+
 fn usage() -> ! {
     eprintln!("usage: neuroseek-tui <metrics.jsonl> [--showcase] [--lang en|ja] [--once] [--no-color]\n       neuroseek-tui --attach-current [--showcase] [--lang en|ja] [--once] [--no-color]");
     std::process::exit(2)
@@ -845,11 +1414,66 @@ fn main() {
     let (once, showcase, no_color, language) = parse_flags(&flags).unwrap_or_else(|| usage());
     let tty = io::stdout().is_terminal();
     let color = tty && env::var_os("NO_COLOR").is_none() && !no_color;
+    if showcase && tty && !once {
+        let _terminal = TerminalGuard::enter(true);
+        let receiver = key_channel();
+        let mut screen = Screen::Explore;
+        let mut language = language;
+        let mut input = String::new();
+        let mut notice = t(
+            language,
+            "1–4 switch views · / opens the command bar",
+            "1〜4で表示切替 · /でコマンドバーを開きます",
+        )
+        .to_owned();
+        let mut last_draw = Instant::now() - Duration::from_secs(1);
+        loop {
+            if last_draw.elapsed() >= Duration::from_millis(180) {
+                match tail_events(Path::new(&path)) {
+                    Ok(events) if !events.is_empty() => {
+                        draw_cinematic(&events, screen, &input, &notice, color, true, language)
+                    }
+                    Ok(_) => eprintln!("waiting for complete durable metrics event: {path}"),
+                    Err(error) => eprintln!("waiting for {path}: {error}"),
+                }
+                last_draw = Instant::now();
+            }
+            match receiver.recv_timeout(Duration::from_millis(40)) {
+                Ok(b'\x03') | Ok(b'q') if input.is_empty() => break,
+                Ok(b'l') if input.is_empty() => {
+                    language = if language == Language::English {
+                        Language::Japanese
+                    } else {
+                        Language::English
+                    };
+                    notice =
+                        t(language, "Display language: English", "表示言語: 日本語").to_owned();
+                }
+                Ok(key) if input.is_empty() && Screen::from_key(key).is_some() => {
+                    screen = Screen::from_key(key).unwrap()
+                }
+                Ok(b'\r') | Ok(b'\n') if !input.is_empty() => {
+                    if apply_viewer_command(&input, &mut screen, &mut language, &mut notice) {
+                        break;
+                    }
+                    input.clear();
+                }
+                Ok(b'\x1b') => input.clear(),
+                Ok(b'\x7f') | Ok(b'\x08') => {
+                    input.pop();
+                }
+                Ok(byte @ b' '..=b'~') => input.push(byte as char),
+                Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+        return;
+    }
     loop {
         match tail_events(Path::new(&path)) {
             Ok(events) if !events.is_empty() => {
                 if showcase {
-                    draw_showcase(&events, color, tty, language)
+                    draw_cinematic(&events, Screen::Explore, "", "", color, tty, language)
                 } else {
                     draw(&events, color, tty, language)
                 }

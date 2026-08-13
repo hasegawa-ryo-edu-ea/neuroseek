@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Read-only cinematic NEUROSEEK viewer. It never starts, stops, or controls training.
+set -Eeuo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$root"
+
+language=en
+if [[ "${1:-}" == "ja" || "${1:-}" == "en" ]]; then
+  language=$1
+  shift
+fi
+
+binary=target/release/neuroseek-tui
+if [[ ! -x "$binary" || rust/tui/src/main.rs -nt "$binary" ]]; then
+  cargo build --release -p neuroseek-tui
+fi
+
+exec "$binary" --attach-current --showcase --lang "$language" "$@"

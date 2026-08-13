@@ -183,17 +183,19 @@ For a presentation-oriented, high-contrast terminal display, build the
 read-only Rust TUI and attach it to the current run:
 
 ```bash
-cargo build --release -p neuroseek-tui
-./target/release/neuroseek-tui --attach-current --showcase --lang en
+./watch
 ```
 
-The showcase draws curriculum progress, proof/search signals, policy state,
-the latest durable search trace, and Jetson thermal/RAM gauges. It reads only
-`metrics.jsonl`; `Ctrl-C` closes the display and never pauses, resumes, or
-otherwise controls the trainer. Add `--once` for a single screenshot-friendly
-frame or `--no-color` for a plain log capture. Switch the whole dashboard with
-`--lang en` (English, the default) or `--lang ja` (Japanese). The short form
-`--lang=ja` is also supported.
+Run `./watch ja` for Japanese. The helper builds only when needed, attaches to
+the current run, and opens the cinematic full-screen view. It draws an
+amida-like lattice from the latest durable search program, plus proof/search,
+policy, and Jetson telemetry. It reads only `metrics.jsonl`; `Ctrl-C` closes
+the display and never pauses, resumes, or otherwise controls the trainer.
+
+Use `1` Explore, `2` Trace, `3` System, and `4` Model to switch pages. Press
+`l` to toggle the display language. `/` opens a local Codex-style command bar:
+`/help`, `/lang ja`, `/lang en`, and `/quit` are supported. Add `--once` for a
+single screenshot-friendly frame or `--no-color` for a plain log capture.
 
 ## How to interpret a run
 
