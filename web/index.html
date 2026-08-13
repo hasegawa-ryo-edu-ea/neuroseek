@@ -27,7 +27,13 @@
         </aside>
         <section class="theater" aria-label="graph exploration">
           <div class="theater-head"><div><p class="eyebrow" data-i18n="theater">GRAPH NAVIGATION THEATER</p><h1 id="graph-title" data-i18n="startTitle">ASK THE GRAPH</h1></div><div id="story-state" class="story-state">READY</div></div>
-          <canvas id="graph-canvas" aria-label="Animated local knowledge graph"></canvas>
+          <div class="graph-stage">
+            <canvas id="graph-canvas" aria-label="Interactive animated local knowledge graph"></canvas>
+            <div class="graph-controls" aria-label="Graph view controls">
+              <button id="graph-reset" class="graph-control" title="Reset graph view">RESET</button>
+              <span id="graph-hint" data-i18n="graphHint">DRAG TO PAN · WHEEL TO ZOOM · CLICK A NODE</span>
+            </div>
+          </div>
           <div class="canvas-legend"><span class="legend selected"></span><span data-i18n="selectedPath">selected local edge</span><span class="legend alternative"></span><span data-i18n="alternatives">alternative local edge</span></div>
           <div class="command-deck"><label for="query" data-i18n="queryLabel">QUERY INPUT — natural language or Wikidata Q-ID</label><div class="input-row"><span>neuroseek&gt;</span><input id="query" autocomplete="off" placeholder="日本 / Japan / Q17"><button id="run-search" data-i18n="searchButton">EXPLORE</button></div><div id="candidate-row" class="candidates"></div><div class="filter-row"><label for="relation" data-i18n="relationLabel">RELATION FILTER</label><input id="relation" autocomplete="off" placeholder="首都 / capital / P36"><button id="apply-filter" data-i18n="filterButton">FILTER</button></div></div>
         </section>

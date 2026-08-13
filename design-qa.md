@@ -23,7 +23,7 @@
 
 - Compare line density and node-label readability at the presentation display's native resolution after a browser capture is available.
 
-Source visual truth path: `/home/nvidia/.codex/generated_images/019ffc16-82e8-7022-9ba9-fa51cb2b8f52/exec-32e36ab6-e80c-4c29-bf26-45011fb42dfd.png`
+Source visual truth paths: `/home/nvidia/.codex/generated_images/019ffc16-82e8-7022-9ba9-fa51cb2b8f52/exec-32e36ab6-e80c-4c29-bf26-45011fb42dfd.png` and `/home/nvidia/jetson-inference/Final_Project/tmp/スクリーンショット 2026-08-14 072433.png`.
 
 Implementation screenshot path: unavailable — no browser screenshot tool is exposed in this environment.
 
@@ -39,6 +39,6 @@ Primary interactions function-checked: launcher output, loopback health endpoint
 
 Console errors checked: JavaScript syntax was checked with `node --check`; no browser console is available.
 
-Comparison history: no visual comparison iteration could start.
+Comparison history: the supplied 2557×1377 screenshot was reviewed as the existing rendered baseline. This iteration adds visible drag/zoom/reset affordances, node selection, staged edge/node materialization, and staggered evidence/candidate/result reveals. A current browser capture is still required for pixel-level comparison.
 
 final result: blocked
