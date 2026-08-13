@@ -1,9 +1,249 @@
-const strings={en:{subtitle:'LEARNED KNOWLEDGE GRAPH SEARCH',isolated:'TRAINER ISOLATED',navSearch:'01 / SEARCH',navPolicy:'02 / POLICY',navAbout:'03 / METHOD',evidence:'LOCAL EVIDENCE',awaiting:'AWAITING QUERY',awaitingDetail:"Enter a word, Q-ID, or place to inspect this Jetson's local graph.",facts:'OBSERVED FACTS',factsEmpty:"The selected entity's real outgoing graph edges will appear here.",boundary:'EVIDENCE BOUNDARY',boundaryDetail:'Names are resolved through Wikidata. Only edges shown here are stored in the local read-only snapshot.',theater:'GRAPH NAVIGATION THEATER',startTitle:'ASK THE GRAPH',selectedPath:'selected local edge',alternatives:'alternative local edge',graphHint:'DRAG TO PAN · WHEEL TO ZOOM · CLICK A NODE',queryLabel:'QUERY INPUT — natural language or Wikidata Q-ID',searchButton:'EXPLORE',relationLabel:'RELATION FILTER',filterButton:'FILTER',story:'THE STORY',asked:'ASKED',askedDetail:'Your term becomes an entity candidate.',found:'FOUND',foundDetail:'Choose a candidate available in the local snapshot.',explored:'EXPLORED',exploredDetail:'Follow real outgoing graph edges.',verified:'BOUNDARY',verifiedDetail:'The graph view never claims online context as local evidence.',policyEyebrow:'LEARNED POLICY DEMONSTRATION',policyTitle:'A policy chooses the graph program.',policyDetail:'This runs the immutable presentation checkpoint against a held-out graph task. The reference answer is not passed to the policy.',runPolicy:'RUN HELD-OUT TASK',policyReady:'Ready. This action is CPU-only and does not interfere with training.',methodEyebrow:'WHY NEUROSEEK',methodTitle:'Learn → Explore → Prove',learn:'LEARN',learnDetail:'A learned policy selects graph operations.',explore:'EXPLORE',exploreDetail:'The program traverses the memory-mapped local graph.',prove:'PROVE',proveDetail:'A separate validator accepts reconstructable evidence only.',footer:'STATUS: READY'},ja:{subtitle:'学習済み知識グラフ探索',isolated:'学習器から分離',navSearch:'01 / 検索',navPolicy:'02 / 方策',navAbout:'03 / 手法',evidence:'ローカル証拠',awaiting:'検索待機中',awaitingDetail:'単語・Q-ID・場所を入力して、このJetson内のグラフを調べます。',facts:'観測した事実',factsEmpty:'選んだ対象から出る実際のローカルグラフエッジをここに表示します。',boundary:'証拠の境界',boundaryDetail:'名称はWikidataで解決します。ここに表示するエッジだけがローカル読み取り専用スナップショットの証拠です。',theater:'グラフ探索シアター',startTitle:'グラフに問いかける',selectedPath:'選択中のローカルエッジ',alternatives:'他のローカルエッジ',graphHint:'ドラッグで移動 · ホイールで拡大 · ノードを選択',queryLabel:'クエリ入力 — 自然言語または Wikidata Q-ID',searchButton:'探索',relationLabel:'関係フィルタ',filterButton:'絞り込み',story:'ストーリー',asked:'質問',askedDetail:'入力語を候補エンティティへ解決します。',found:'発見',foundDetail:'ローカルスナップショットで使える候補を選びます。',explored:'探索',exploredDetail:'実際の出力グラフエッジをたどります。',verified:'境界',verifiedDetail:'オンラインの説明をローカル証拠として扱いません。',policyEyebrow:'学習済み方策デモ',policyTitle:'方策がグラフプログラムを選ぶ。',policyDetail:'不変の発表用チェックポイントを未使用グラフ課題で実行します。正解は方策に渡しません。',runPolicy:'未使用課題を実行',policyReady:'準備完了。この操作はCPU専用で、学習を妨害しません。',methodEyebrow:'NEUROSEEKの特徴',methodTitle:'学習 → 探索 → 証明',learn:'学習',learnDetail:'学習済み方策がグラフ演算を選びます。',explore:'探索',exploreDetail:'プログラムがメモリマップされたローカルグラフをたどります。',prove:'証明',proveDetail:'別系統の検証器が再構築可能な証拠だけを受理します。',footer:'状態: 準備完了'}};
-let lang='ja',selected=null,graphData=null;const $=s=>document.querySelector(s),scene={x:0,y:0,zoom:1,drag:null,selected:0,reveal:0,animation:0,nodes:[]};const t=k=>strings[lang][k]||k,notice=v=>$('#notice').textContent=v;
-function applyLanguage(){document.documentElement.lang=lang;document.querySelectorAll('[data-i18n]').forEach(n=>n.textContent=t(n.dataset.i18n));$('#language').textContent=lang==='ja'?'EN':'日本語';if(graphData)renderGraph(graphData,false)}async function api(p){const r=await fetch(p),d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d}const stage=v=>$('#story-state').textContent=v;
-async function search(){const q=$('#query').value.trim();if(!q)return;notice(lang==='ja'?'候補をローカルグラフに照合しています…':'Resolving candidates against the local graph…');stage('RESOLVING');try{const d=await api(`/api/search?q=${encodeURIComponent(q)}&lang=${lang}`),row=$('#candidate-row');row.innerHTML='';d.candidates.forEach((c,i)=>{const b=document.createElement('button');b.className=`candidate ${c.local?'local':'external'} reveal-item`;b.style.setProperty('--delay',`${90+i*65}ms`);b.textContent=`${c.local?'●':'○'} ${c.label} [${c.identifier}]`;b.title=c.description||'';b.onclick=()=>c.local?select(c):notice(lang==='ja'?'この候補はWikidataの説明にはありますが、ローカル証拠にはありません。':'This candidate is Wikidata context, not local evidence.');row.appendChild(b)});const first=d.candidates.find(c=>c.local);if(first)await select(first);else{notice(lang==='ja'?'ローカルにある候補はありません。外部候補は証拠としては扱いません。':'No candidate is in the local snapshot. External context is not presented as evidence.');stage('BOUNDARY')}}catch(e){notice(e.message);stage('ERROR')}}async function select(c){selected=c;$('#relation').value='';await loadGraph()}async function loadGraph(){if(!selected)return;stage('EXPLORING');notice(lang==='ja'?'ローカルグラフの実エッジを展開しています…':'Unfolding real local graph edges…');try{graphData=await api(`/api/graph?entity=${encodeURIComponent(selected.identifier)}&relation=${encodeURIComponent($('#relation').value)}&lang=${lang}`);renderGraph(graphData,true);stage('EVIDENCE READY');notice(lang==='ja'?`${graphData.edges.length} 本のローカルエッジを段階的に可視化しました。`:`Unfolding ${graphData.edges.length} local graph edges.`)}catch(e){notice(e.message);stage('BOUNDARY')}}
-function renderGraph(d,animate=true){$('#graph-title').textContent=`${d.root.label}  [${d.root.id}]`;$('#entity-card').className='entity-card result-arrive';$('#entity-card').innerHTML=`<strong>${d.root.label}</strong><p>${d.root.id} · ${t('evidence')}</p>${d.relation_filter?`<p>${t('relationLabel')}: ${d.relation_filter.label} [${d.relation_filter.identifier}]</p>`:''}`;$('#facts').innerHTML=d.edges.length?d.edges.map((e,i)=>`<li class="reveal-item" style="--delay:${180+i*72}ms"><b>${String(i+1).padStart(2,'0')}</b> <em>${e.relation.label}</em><br>→ ${e.target.label} <span>[${e.target.id}]</span></li>`).join(''):`<li>${lang==='ja'?'該当するローカルエッジはありません。':'No matching local edges.'}</li>`;scene.selected=0;scene.reveal=animate?performance.now():0;resetView();draw(d)}function resetView(){scene.x=0;scene.y=0;scene.zoom=1}function nodesFor(d,w){const root={x:w*.5,y:74,label:d.root.label,id:d.root.id},targets=d.edges.slice(0,12).map((e,i)=>{const row=Math.floor(i/4),col=i%4,offset=[-.37,-.12,.12,.37][col];return{x:w*(.5+offset),y:168+row*112+(col%2?10:-8),label:e.target.label,id:e.target.id,relation:e.relation.label}});return[root,...targets]}
-function draw(d){cancelAnimationFrame(scene.animation);const c=$('#graph-canvas'),ctx=c.getContext('2d'),dpr=devicePixelRatio||1;function paint(now){const r=c.getBoundingClientRect(),w=r.width,h=r.height;if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){c.width=Math.round(w*dpr);c.height=Math.round(h*dpr)}ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);const ns=nodesFor(d,w);scene.nodes=ns;const elapsed=scene.reveal?now-scene.reveal:10000;ctx.save();ctx.translate(scene.x,scene.y);ctx.scale(scene.zoom,scene.zoom);ctx.textAlign='center';ctx.font='12px ui-monospace, SFMono-Regular, Menlo, monospace';d.edges.slice(0,12).forEach((e,i)=>{const n=ns[i+1],v=Math.max(0,Math.min(1,(elapsed-i*145)/430));if(!v)return;const active=i===scene.selected;ctx.globalAlpha=v*(active?1:.42);ctx.strokeStyle=active?'#2fe6ff':'#77818c';ctx.lineWidth=active?2:1;ctx.setLineDash(active?[9,8]:[]);ctx.lineDashOffset=active?-(now/18):0;ctx.beginPath();ctx.moveTo(ns[0].x,ns[0].y+17);ctx.quadraticCurveTo((ns[0].x+n.x)/2,ns[0].y+39,n.x,n.y-13);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=v;ctx.fillStyle=active?'#2fe6ff':'#8b949e';ctx.fillText(e.relation.label.slice(0,20),(ns[0].x+n.x)/2,(ns[0].y+n.y)/2-7)});ns.forEach((n,i)=>{const v=i===0?Math.max(0,Math.min(1,elapsed/360)):Math.max(0,Math.min(1,(elapsed-(i-1)*145)/430));if(!v)return;const hot=i===0||i-1===scene.selected,radius=(hot?13:8)*(.65+.35*v);ctx.globalAlpha=v;ctx.fillStyle='#101010';ctx.strokeStyle=hot?'#2fe6ff':'#8b949e';ctx.lineWidth=hot?2.5:1.5;ctx.beginPath();ctx.arc(n.x,n.y,radius,0,Math.PI*2);ctx.fill();ctx.stroke();if(hot){ctx.globalAlpha=v*(.16+.13*Math.sin(now/180));ctx.beginPath();ctx.arc(n.x,n.y,radius+9+2*Math.sin(now/220),0,Math.PI*2);ctx.stroke()}ctx.globalAlpha=v;ctx.fillStyle=hot?'#f2f2f2':'#bdbdbd';ctx.fillText(n.label.slice(0,24),n.x,n.y+29);ctx.fillStyle=hot?'#2fe6ff':'#8b949e';ctx.fillText(n.id,n.x,n.y+44)});ctx.restore();ctx.globalAlpha=1;scene.animation=requestAnimationFrame(paint)}scene.animation=requestAnimationFrame(paint)}
-function point(e){const r=$('#graph-canvas').getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}function graphSetup(){const c=$('#graph-canvas');c.addEventListener('pointerdown',e=>{c.setPointerCapture(e.pointerId);scene.drag={...point(e),x:scene.x,y:scene.y};c.classList.add('dragging')});c.addEventListener('pointermove',e=>{if(!scene.drag)return;const p=point(e);scene.x=scene.drag.x+p.x-scene.drag.x;scene.y=scene.drag.y+p.y-scene.drag.y});c.addEventListener('pointerup',e=>{const p=point(e),move=Math.hypot(p.x-scene.drag.x,p.y-scene.drag.y);c.releasePointerCapture(e.pointerId);c.classList.remove('dragging');scene.drag=null;if(move<6&&graphData){const hit=scene.nodes.findIndex((n,i)=>i>0&&Math.hypot(p.x-(n.x*scene.zoom+scene.x),p.y-(n.y*scene.zoom+scene.y))<24);if(hit>0){scene.selected=hit-1;[...$('#facts').children].forEach((n,i)=>n.classList.toggle('selected-fact',i===scene.selected));notice(lang==='ja'?`${graphData.edges[scene.selected].relation.label} → ${graphData.edges[scene.selected].target.label} を選択しました。`:`Selected ${graphData.edges[scene.selected].relation.label} → ${graphData.edges[scene.selected].target.label}.`)}}});c.addEventListener('wheel',e=>{e.preventDefault();const p=point(e),before={x:(p.x-scene.x)/scene.zoom,y:(p.y-scene.y)/scene.zoom};scene.zoom=Math.max(.55,Math.min(2.4,scene.zoom*(e.deltaY<0?1.1:.9)));scene.x=p.x-before.x*scene.zoom;scene.y=p.y-before.y*scene.zoom},{passive:false});$('#graph-reset').onclick=()=>{resetView();scene.selected=0;notice(lang==='ja'?'グラフ視点を初期位置へ戻しました。':'Graph view reset.')}}
-async function runPolicy(){const out=$('#policy-result');out.innerHTML=`<p class="result-arrive">${lang==='ja'?'不変チェックポイントをCPUで実行中…':'Running immutable checkpoint on CPU…'}</p>`;try{const d=await api('/api/policy?task=0'),o=d.outcome;out.innerHTML=`<p class="${o.valid_proof?'result-valid':'result-invalid'} result-arrive">${o.valid_proof?'VALID PROOF':'NO VALID PROOF'}</p><p class="result-arrive" style="--delay:90ms">${lang==='ja'?'回答':'Answer'}: ${o.answer?`${o.answer.label} [${o.answer.identifier}]`:'none'}</p><p class="result-arrive" style="--delay:160ms">${lang==='ja'?'実行時間':'Elapsed'}: ${o.elapsed_ms} ms · ${lang==='ja'?'クレジット':'credits'}: ${o.credits} · ${lang==='ja'?'エッジ':'edges'}: ${o.edges_examined}</p><ol class="trace">${d.steps.map((s,i)=>`<li class="reveal-item" style="--delay:${240+i*58}ms"><b>${String(s.index).padStart(2,'0')} ${s.operator}</b> ${s.trace}</li>`).join('')}</ol>`}catch(e){out.innerHTML=`<p class="result-invalid">${e.message}</p>`}}
-document.querySelectorAll('.nav-item').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav-item,.panel').forEach(n=>n.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.panel).classList.add('active')});$('#run-search').onclick=search;$('#query').addEventListener('keydown',e=>{if(e.key==='Enter')search()});$('#apply-filter').onclick=loadGraph;$('#relation').addEventListener('keydown',e=>{if(e.key==='Enter')loadGraph()});$('#run-policy').onclick=runPolicy;$('#language').onclick=()=>{lang=lang==='ja'?'en':'ja';applyLanguage()};api('/api/health').then(()=>{notice(lang==='ja'?'準備完了。単語またはQ-IDを入力してください。':'Ready. Enter a word or Q-ID.');$('#graph-meta').textContent='LOCAL GRAPH / READY'}).catch(e=>notice(e.message));graphSetup();applyLanguage();
+const strings = {
+  en: {subtitle:'LEARNED KNOWLEDGE GRAPH SEARCH',isolated:'TRAINER ISOLATED',navSearch:'01 / SEARCH',navPolicy:'02 / POLICY',navAbout:'03 / METHOD',evidence:'LOCAL EVIDENCE',awaiting:'AWAITING QUERY',awaitingDetail:'Enter a word, Q-ID, or place to inspect this Jetson\'s local graph.',facts:'OBSERVED FACTS',factsEmpty:'The selected entity\'s real outgoing graph edges will appear here.',boundary:'EVIDENCE BOUNDARY',boundaryDetail:'Names are resolved through Wikidata. Only edges shown here are stored in the local read-only snapshot.',theater:'GRAPH NAVIGATION THEATER',startTitle:'ASK THE GRAPH',selectedPath:'selected local edge',alternatives:'alternative local edge',graphHint:'DRAG TO PAN · WHEEL TO ZOOM · CLICK A NODE',queryLabel:'QUERY INPUT — natural language or Wikidata Q-ID',searchButton:'EXPLORE',relationLabel:'RELATION FILTER',filterButton:'FILTER',story:'THE STORY',asked:'ASKED',askedDetail:'Your term becomes an entity candidate.',found:'FOUND',foundDetail:'Choose a candidate available in the local snapshot.',explored:'EXPLORED',exploredDetail:'Follow real outgoing graph edges.',verified:'BOUNDARY',verifiedDetail:'The graph view never claims online context as local evidence.',policyEyebrow:'LEARNED POLICY DEMONSTRATION',policyTitle:'A policy chooses the graph program.',policyDetail:'This runs the immutable presentation checkpoint against a held-out graph task. The reference answer is not passed to the policy.',runPolicy:'RUN HELD-OUT TASK',policyReady:'Ready. This action is CPU-only and does not interfere with training.',methodEyebrow:'WHY NEUROSEEK',methodTitle:'Learn → Explore → Prove',learn:'LEARN',learnDetail:'A learned policy selects graph operations.',explore:'EXPLORE',exploreDetail:'The program traverses the memory-mapped local graph.',prove:'PROVE',proveDetail:'A separate validator accepts reconstructable evidence only.',footer:'STATUS: READY'},
+  ja: {subtitle:'学習済み知識グラフ探索',isolated:'学習器から分離',navSearch:'01 / 検索',navPolicy:'02 / 方策',navAbout:'03 / 手法',evidence:'ローカル証拠',awaiting:'検索待機中',awaitingDetail:'単語・Q-ID・場所を入力して、このJetson内のグラフを調べます。',facts:'観測した事実',factsEmpty:'選んだ対象から出る実際のローカルグラフエッジをここに表示します。',boundary:'証拠の境界',boundaryDetail:'名称はWikidataで解決します。ここに表示するエッジだけがローカル読み取り専用スナップショットの証拠です。',theater:'グラフ探索シアター',startTitle:'グラフに問いかける',selectedPath:'選択中のローカルエッジ',alternatives:'他のローカルエッジ',graphHint:'ドラッグで移動 · ホイールで拡大 · ノードを選択',queryLabel:'クエリ入力 — 自然言語または Wikidata Q-ID',searchButton:'探索',relationLabel:'関係フィルタ',filterButton:'絞り込み',story:'ストーリー',asked:'質問',askedDetail:'入力語を候補エンティティへ解決します。',found:'発見',foundDetail:'ローカルスナップショットで使える候補を選びます。',explored:'探索',exploredDetail:'実際の出力グラフエッジをたどります。',verified:'境界',verifiedDetail:'オンラインの説明をローカル証拠として扱いません。',policyEyebrow:'学習済み方策デモ',policyTitle:'方策がグラフプログラムを選ぶ。',policyDetail:'不変の発表用チェックポイントを未使用グラフ課題で実行します。正解は方策に渡しません。',runPolicy:'未使用課題を実行',policyReady:'準備完了。この操作はCPU専用で、学習を妨害しません。',methodEyebrow:'NEUROSEEKの特徴',methodTitle:'学習 → 探索 → 証明',learn:'学習',learnDetail:'学習済み方策がグラフ演算を選びます。',explore:'探索',exploreDetail:'プログラムがメモリマップされたローカルグラフをたどります。',prove:'証明',proveDetail:'別系統の検証器が再構築可能な証拠だけを受理します。',footer:'状態: 準備完了'}
+};
+
+let lang = 'ja';
+let selected = null;
+let graphData = null;
+const $ = selector => document.querySelector(selector);
+const scene = { x: 0, y: 0, zoom: 1, drag: null, selected: 0, reveal: 0, animation: 0, nodes: [], size: { w: 0, h: 0 } };
+const t = key => strings[lang][key] || key;
+const notice = value => { $('#notice').textContent = value; };
+const stage = value => { $('#story-state').textContent = value; };
+
+function applyLanguage() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(node => { node.textContent = t(node.dataset.i18n); });
+  $('#language').textContent = lang === 'ja' ? 'EN' : '日本語';
+  if (graphData) renderGraph(graphData, false);
+}
+
+async function api(path) {
+  const response = await fetch(path);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function summary(data) {
+  const relationCount = new Set(data.edges.map(edge => edge.relation.id)).size;
+  $('#graph-summary').innerHTML = [
+    `<span>NODE <b>${data.root.id}</b></span>`,
+    `<span>LOCAL EDGES <b>${data.edges.length}</b></span>`,
+    `<span>RELATIONS <b>${relationCount}</b></span>`,
+    `<span>SNAPSHOT <b>${data.graph.entities.toLocaleString()}</b></span>`,
+    `<span id="view-stat">VIEW <b>${scene.zoom.toFixed(2)}×</b></span>`,
+  ].join('');
+}
+
+function updateSelection() {
+  if (!graphData || !graphData.edges[scene.selected]) return;
+  const edge = graphData.edges[scene.selected];
+  $('#selected-edge').textContent = `${String(scene.selected + 1).padStart(2, '0')}  ${edge.relation.label} → ${edge.target.label}`;
+  [...$('#facts').children].forEach((node, index) => node.classList.toggle('selected-fact', index === scene.selected));
+}
+
+function viewStat() {
+  const stat = $('#view-stat');
+  if (stat) stat.innerHTML = `VIEW <b>${scene.zoom.toFixed(2)}×</b>`;
+}
+
+async function search() {
+  const query = $('#query').value.trim();
+  if (!query) return;
+  notice(lang === 'ja' ? '候補をローカルグラフに照合しています…' : 'Resolving candidates against the local graph…');
+  stage('RESOLVING');
+  try {
+    const data = await api(`/api/search?q=${encodeURIComponent(query)}&lang=${lang}`);
+    const row = $('#candidate-row');
+    row.innerHTML = '';
+    data.candidates.forEach((candidate, index) => {
+      const button = document.createElement('button');
+      button.className = `candidate ${candidate.local ? 'local' : 'external'} reveal-item`;
+      button.style.setProperty('--delay', `${90 + index * 65}ms`);
+      button.textContent = `${candidate.local ? '●' : '○'} ${candidate.label} [${candidate.identifier}]`;
+      button.title = candidate.description || '';
+      button.onclick = () => candidate.local ? select(candidate) : notice(lang === 'ja' ? 'この候補はWikidataの説明にはありますが、ローカル証拠にはありません。' : 'This candidate is Wikidata context, not local evidence.');
+      row.appendChild(button);
+    });
+    const first = data.candidates.find(candidate => candidate.local);
+    if (first) await select(first);
+    else { notice(lang === 'ja' ? 'ローカルにある候補はありません。外部候補は証拠としては扱いません。' : 'No candidate is in the local snapshot. External context is not presented as evidence.'); stage('BOUNDARY'); }
+  } catch (error) { notice(error.message); stage('ERROR'); }
+}
+
+async function select(candidate) { selected = candidate; $('#relation').value = ''; await loadGraph(); }
+
+async function loadGraph() {
+  if (!selected) return;
+  stage('EXPLORING');
+  notice(lang === 'ja' ? 'ローカルグラフの実エッジを展開しています…' : 'Unfolding real local graph edges…');
+  try {
+    graphData = await api(`/api/graph?entity=${encodeURIComponent(selected.identifier)}&relation=${encodeURIComponent($('#relation').value)}&lang=${lang}`);
+    renderGraph(graphData, true);
+    stage('EVIDENCE READY');
+    notice(lang === 'ja' ? `${graphData.edges.length} 本のローカルエッジを段階的に可視化しました。` : `Unfolding ${graphData.edges.length} local graph edges.`);
+  } catch (error) { notice(error.message); stage('BOUNDARY'); }
+}
+
+function renderGraph(data, animate = true) {
+  $('#graph-title').textContent = `${data.root.label}  [${data.root.id}]`;
+  $('#entity-card').className = 'entity-card result-arrive';
+  $('#entity-card').innerHTML = `<strong>${data.root.label}</strong><p>${data.root.id} · ${t('evidence')}</p>${data.relation_filter ? `<p>${t('relationLabel')}: ${data.relation_filter.label} [${data.relation_filter.identifier}]</p>` : ''}`;
+  $('#facts').innerHTML = data.edges.length
+    ? data.edges.map((edge, index) => `<li class="reveal-item" style="--delay:${180 + index * 58}ms"><b>${String(index + 1).padStart(2, '0')}</b> <em>${edge.relation.label}</em><br>→ ${edge.target.label} <span>[${edge.target.id}]</span></li>`).join('')
+    : `<li>${lang === 'ja' ? '該当するローカルエッジはありません。' : 'No matching local edges.'}</li>`;
+  scene.selected = 0;
+  scene.reveal = animate ? performance.now() : 0;
+  resetView();
+  summary(data);
+  updateSelection();
+  draw(data);
+}
+
+function resetView() { scene.x = 0; scene.y = 0; scene.zoom = 1; viewStat(); }
+
+function nodesFor(data, width, height) {
+  const root = { x: width * .5, y: height * .47, label: data.root.label, id: data.root.id };
+  const count = Math.min(18, data.edges.length);
+  const targets = data.edges.slice(0, count).map((edge, index) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * index / Math.max(1, count));
+    const ring = index % 2 ? .33 : .39;
+    return {
+      x: width * .5 + Math.cos(angle) * width * ring,
+      y: height * .47 + Math.sin(angle) * height * .35,
+      label: edge.target.label,
+      id: edge.target.id,
+      relation: edge.relation.label,
+    };
+  });
+  return [root, ...targets];
+}
+
+function draw(data) {
+  cancelAnimationFrame(scene.animation);
+  const canvas = $('#graph-canvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = devicePixelRatio || 1;
+  function paint(now) {
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) { canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr); }
+    scene.size = { w: width, h: height };
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    const nodes = nodesFor(data, width, height);
+    scene.nodes = nodes;
+    const elapsed = scene.reveal ? now - scene.reveal : 10000;
+    ctx.save();
+    ctx.translate(scene.x, scene.y);
+    ctx.scale(scene.zoom, scene.zoom);
+    ctx.textAlign = 'center';
+    ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
+    data.edges.slice(0, 18).forEach((edge, index) => {
+      const node = nodes[index + 1];
+      const visible = Math.max(0, Math.min(1, (elapsed - index * 95) / 350));
+      if (!visible) return;
+      const active = index === scene.selected;
+      ctx.globalAlpha = visible * (active ? 1 : .38);
+      ctx.strokeStyle = active ? '#2fe6ff' : '#77818c';
+      ctx.lineWidth = active ? 2.2 : 1;
+      ctx.setLineDash(active ? [9, 8] : []);
+      ctx.lineDashOffset = active ? -(now / 18) : 0;
+      ctx.beginPath();
+      ctx.moveTo(nodes[0].x, nodes[0].y);
+      ctx.quadraticCurveTo((nodes[0].x + node.x) / 2, (nodes[0].y + node.y) / 2 - 18, node.x, node.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = visible * (active ? 1 : .7);
+      ctx.fillStyle = active ? '#2fe6ff' : '#8b949e';
+      ctx.fillText(edge.relation.label.slice(0, 18), (nodes[0].x + node.x) / 2, (nodes[0].y + node.y) / 2 - 12);
+    });
+    nodes.forEach((node, index) => {
+      const visible = index === 0 ? Math.max(0, Math.min(1, elapsed / 300)) : Math.max(0, Math.min(1, (elapsed - (index - 1) * 95) / 350));
+      if (!visible) return;
+      const hot = index === 0 || index - 1 === scene.selected;
+      const radius = (hot ? 14 : 7) * (.65 + .35 * visible);
+      ctx.globalAlpha = visible;
+      ctx.fillStyle = '#101010';
+      ctx.strokeStyle = hot ? '#2fe6ff' : '#8b949e';
+      ctx.lineWidth = hot ? 2.5 : 1.5;
+      ctx.beginPath(); ctx.arc(node.x, node.y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      if (hot) { ctx.globalAlpha = visible * (.16 + .13 * Math.sin(now / 180)); ctx.beginPath(); ctx.arc(node.x, node.y, radius + 9 + 2 * Math.sin(now / 220), 0, Math.PI * 2); ctx.stroke(); }
+      ctx.globalAlpha = visible;
+      ctx.fillStyle = hot ? '#f2f2f2' : '#bdbdbd';
+      ctx.fillText(node.label.slice(0, 19), node.x, node.y + 26);
+      ctx.fillStyle = hot ? '#2fe6ff' : '#8b949e';
+      ctx.fillText(node.id, node.x, node.y + 39);
+    });
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    scene.animation = requestAnimationFrame(paint);
+  }
+  scene.animation = requestAnimationFrame(paint);
+}
+
+function point(event) { const rect = $('#graph-canvas').getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; }
+function clampView() { const { w, h } = scene.size; scene.x = Math.max(-w * .65, Math.min(w * .65, scene.x)); scene.y = Math.max(-h * .65, Math.min(h * .65, scene.y)); }
+function graphSetup() {
+  const canvas = $('#graph-canvas');
+  canvas.addEventListener('pointerdown', event => {
+    const p = point(event);
+    canvas.setPointerCapture(event.pointerId);
+    scene.drag = { pointer: event.pointerId, px: p.x, py: p.y, x: scene.x, y: scene.y };
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', event => {
+    if (!scene.drag || scene.drag.pointer !== event.pointerId) return;
+    const p = point(event);
+    scene.x = scene.drag.x + p.x - scene.drag.px;
+    scene.y = scene.drag.y + p.y - scene.drag.py;
+    clampView();
+  });
+  const finish = event => {
+    if (!scene.drag || scene.drag.pointer !== event.pointerId) return;
+    const p = point(event);
+    const moved = Math.hypot(p.x - scene.drag.px, p.y - scene.drag.py);
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    canvas.classList.remove('dragging');
+    scene.drag = null;
+    if (moved >= 6 || !graphData) return;
+    const world = { x: (p.x - scene.x) / scene.zoom, y: (p.y - scene.y) / scene.zoom };
+    const hit = scene.nodes.findIndex((node, index) => index > 0 && Math.hypot(world.x - node.x, world.y - node.y) < 24);
+    if (hit > 0) { scene.selected = hit - 1; updateSelection(); const edge = graphData.edges[scene.selected]; notice(lang === 'ja' ? `${edge.relation.label} → ${edge.target.label} を選択しました。` : `Selected ${edge.relation.label} → ${edge.target.label}.`); }
+  };
+  canvas.addEventListener('pointerup', finish);
+  canvas.addEventListener('pointercancel', finish);
+  canvas.addEventListener('wheel', event => {
+    event.preventDefault();
+    const p = point(event);
+    const before = { x: (p.x - scene.x) / scene.zoom, y: (p.y - scene.y) / scene.zoom };
+    scene.zoom = Math.max(.55, Math.min(2.4, scene.zoom * (event.deltaY < 0 ? 1.1 : .9)));
+    scene.x = p.x - before.x * scene.zoom;
+    scene.y = p.y - before.y * scene.zoom;
+    clampView(); viewStat();
+  }, { passive: false });
+  $('#graph-reset').onclick = () => { resetView(); scene.selected = 0; updateSelection(); notice(lang === 'ja' ? 'グラフ視点を初期位置へ戻しました。' : 'Graph view reset.'); };
+}
+
+async function runPolicy() {
+  const out = $('#policy-result');
+  out.innerHTML = `<p class="result-arrive">${lang === 'ja' ? '不変チェックポイントをCPUで実行中…' : 'Running immutable checkpoint on CPU…'}</p>`;
+  try {
+    const data = await api('/api/policy?task=0'); const outcome = data.outcome;
+    out.innerHTML = `<p class="${outcome.valid_proof ? 'result-valid' : 'result-invalid'} result-arrive">${outcome.valid_proof ? 'VALID PROOF' : 'NO VALID PROOF'}</p><p class="result-arrive" style="--delay:90ms">${lang === 'ja' ? '回答' : 'Answer'}: ${outcome.answer ? `${outcome.answer.label} [${outcome.answer.identifier}]` : 'none'}</p><p class="result-arrive" style="--delay:160ms">${lang === 'ja' ? '実行時間' : 'Elapsed'}: ${outcome.elapsed_ms} ms · ${lang === 'ja' ? 'クレジット' : 'credits'}: ${outcome.credits} · ${lang === 'ja' ? 'エッジ' : 'edges'}: ${outcome.edges_examined}</p><ol class="trace">${data.steps.map((step, index) => `<li class="reveal-item" style="--delay:${240 + index * 58}ms"><b>${String(step.index).padStart(2, '0')} ${step.operator}</b> ${step.trace}</li>`).join('')}</ol>`;
+  } catch (error) { out.innerHTML = `<p class="result-invalid">${error.message}</p>`; }
+}
+
+document.querySelectorAll('.nav-item').forEach(button => button.onclick = () => { document.querySelectorAll('.nav-item,.panel').forEach(node => node.classList.remove('active')); button.classList.add('active'); $('#' + button.dataset.panel).classList.add('active'); });
+$('#run-search').onclick = search;
+$('#query').addEventListener('keydown', event => { if (event.key === 'Enter') search(); });
+$('#apply-filter').onclick = loadGraph;
+$('#relation').addEventListener('keydown', event => { if (event.key === 'Enter') loadGraph(); });
+$('#run-policy').onclick = runPolicy;
+$('#language').onclick = () => { lang = lang === 'ja' ? 'en' : 'ja'; applyLanguage(); };
+api('/api/health').then(() => { notice(lang === 'ja' ? '準備完了。単語またはQ-IDを入力してください。' : 'Ready. Enter a word or Q-ID.'); $('#graph-meta').textContent = 'LOCAL GRAPH / READY'; }).catch(error => notice(error.message));
+graphSetup();
+applyLanguage();
