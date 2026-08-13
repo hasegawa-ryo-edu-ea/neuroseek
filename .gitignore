@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+build/
+target/
+# The actual Wikidata5M corpus and semantic vectors are distributed as
+# release assets, not Git blobs (several files exceed GitHub's 100 MB limit).
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+!data/README.md
+# Temporary materializations made by preprocessing; they include SQLite WAL
+# files and are reproducible from data/raw and data/processed.
+data/neuroseek-graph-*/
+cache/*
+!cache/.gitkeep
+runs/*
+!runs/.gitkeep
+artifacts/
+*.log

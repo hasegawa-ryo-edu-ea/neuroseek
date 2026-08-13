@@ -1,0 +1,17 @@
+[run]
+mode = "smoke"
+seed = 1337
+budget_seconds = 8
+
+[training]
+batch_size = 8
+lr = 0.0003
+
+[checkpoint]
+seconds = 2
+retain_periodic = 4
+
+[telemetry]
+# Smoke does not need a thermal control action, but schema-compatible events
+# can still record mounted sysfs values when present.
+enabled = false

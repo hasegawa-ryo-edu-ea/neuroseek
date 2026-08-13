@@ -1,0 +1,15 @@
+# Runtime state is bind-mounted at execution time and must never become an
+# image-build input. This prevents repeated multi-gigabyte context uploads and
+# keeps raw knowledge-graph data/checkpoints out of image layers.
+.git
+.pytest_cache
+__pycache__
+**/__pycache__
+build
+target
+data
+cache
+runs
+artifacts
+*.log
+*.pyc

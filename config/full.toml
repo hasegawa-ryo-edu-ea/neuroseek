@@ -1,0 +1,85 @@
+[run]
+mode = "full"
+seed = 20260810
+# 50h total wall-clock allocation; each named phase budget is persisted in the run manifest.
+budget_seconds = 180000
+# Initial full semantic preparation is intentionally outside trainer time.
+# Cap it at six hours: a slow/failing preparation saves its atomic checkpoint
+# and exits before any 50-hour training allocation is consumed.
+semantic_preparation_max_seconds = 21600
+
+[training]
+batch_size = 16
+lr = 0.0003
+max_cuda_expand_edges = 262144
+navigator_candidate_cap = 256
+
+[checkpoint]
+seconds = 300
+retain_periodic = 24
+
+[storage]
+# A hard runtime reserve protects the final checkpoint, crash report, and
+# exports from a growing JSONL trace or unexpected host-side disk pressure.
+minimum_free_gib = 24
+
+[hardware]
+# Bounded recent observations retained in checkpoints; the complete raw series
+# is durable in metrics.jsonl as HardwareEvent records.
+checkpoint_window = 256
+# Independent measured probes, not a tight loop of duplicate fsync-heavy rows.
+sample_interval_seconds = 1.0
+
+[telemetry]
+# Operational thresholds, not a replacement for Jetson's own thermal safety.
+# They are deliberately configurable and the trainer owns checkpoint/pause.
+enabled = true
+tegrastats_interval_seconds = 10
+warning_temperature_c = 80.0
+critical_temperature_c = 85.0
+# Fail closed: preserve progress and stop rather than spending the remaining
+# fixed 50-hour budget in a critical thermal/throttled state.
+critical_action = "checkpoint_stop"
+
+# 50-hour wall-clock curriculum.  The trainer resolves phase identity from
+# elapsed time, not an unreliable episode-count target.  Individual phase
+# handlers retain their observed metrics and checkpoint boundaries.
+[[phase]]
+name = "cuda_search_microbenchmarks"
+seconds = 900
+
+[[phase]]
+name = "hardware_cost_model"
+seconds = 1800
+
+[[phase]]
+name = "behavior_cloning"
+seconds = 10800
+
+[[phase]]
+name = "rl_2_3_hop"
+seconds = 27000
+
+[[phase]]
+name = "rl_multihop_distractor"
+seconds = 36000
+
+[[phase]]
+name = "rl_intersection"
+seconds = 30000
+
+[[phase]]
+name = "rl_semantic_hybrid"
+seconds = 21600
+
+[[phase]]
+name = "rl_robustness"
+seconds = 18000
+
+[[phase]]
+name = "jetson_specialization"
+seconds = 21600
+
+[[phase]]
+name = "deterministic_final_evaluation"
+seconds = 12300

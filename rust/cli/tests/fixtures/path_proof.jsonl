@@ -1,0 +1,2 @@
+{"type":"graph","nodes":3,"edges":[{"src":0,"relation":7,"dst":1},{"src":1,"relation":8,"dst":2}]}
+{"type":"program","budget":16,"instructions":[{"op":"SEED","node":0},{"op":"EXPAND_REL","relation":7},{"op":"EXPAND_REL","relation":8},{"op":"VERIFY"},{"op":"STOP"}],"query":{"required_edges":[{"src":0,"relation":7,"dst":1},{"src":1,"relation":8,"dst":2}],"answers":[2]}}

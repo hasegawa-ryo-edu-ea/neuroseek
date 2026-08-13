@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuroseek"
+version = "0.1.0"
+description = "A learned GPU knowledge processor for Jetson"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24,<2", "torch==2.1.0", "tomli>=2.0; python_version < '3.11'"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["python"]

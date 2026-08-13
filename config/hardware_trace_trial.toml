@@ -1,0 +1,26 @@
+# Explicit five-second, real-data hardware-phase integration test.
+[run]
+mode = "trial"
+seed = 20260810
+budget_seconds = 5
+
+[training]
+batch_size = 4
+lr = 0.0003
+max_cuda_expand_edges = 262144
+navigator_candidate_cap = 64
+
+[checkpoint]
+seconds = 2
+retain_periodic = 2
+
+[hardware]
+checkpoint_window = 16
+sample_interval_seconds = 1.0
+
+[telemetry]
+enabled = false
+
+[[phase]]
+name = "hardware_cost_model"
+seconds = 5

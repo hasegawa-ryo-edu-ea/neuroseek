@@ -1,0 +1,75 @@
+[run]
+mode = "full"
+seed = 20260810
+# Derived presentation run: its parent checkpoint and unchanged graph/split/
+# semantic hashes are recorded in the child manifest.  This is intentionally
+# not presented as the original 50-hour experiment.
+budget_seconds = 119000
+semantic_preparation_max_seconds = 21600
+
+[training]
+batch_size = 16
+lr = 0.0003
+max_cuda_expand_edges = 262144
+navigator_candidate_cap = 256
+
+[checkpoint]
+seconds = 300
+retain_periodic = 24
+
+[storage]
+minimum_free_gib = 24
+
+[hardware]
+checkpoint_window = 256
+sample_interval_seconds = 1.0
+
+[telemetry]
+enabled = true
+tegrastats_interval_seconds = 10
+warning_temperature_c = 80.0
+critical_temperature_c = 85.0
+critical_action = "checkpoint_stop"
+
+# Preserve the already completed 45-minute setup and most BC warm-up, then
+# proportionally compress only the remaining curriculum for the presentation
+# deadline.  The values sum exactly to budget_seconds.
+[[phase]]
+name = "cuda_search_microbenchmarks"
+seconds = 900
+
+[[phase]]
+name = "hardware_cost_model"
+seconds = 1800
+
+[[phase]]
+name = "behavior_cloning"
+seconds = 6100
+
+[[phase]]
+name = "rl_2_3_hop"
+seconds = 17431
+
+[[phase]]
+name = "rl_multihop_distractor"
+seconds = 23242
+
+[[phase]]
+name = "rl_intersection"
+seconds = 19368
+
+[[phase]]
+name = "rl_semantic_hybrid"
+seconds = 13945
+
+[[phase]]
+name = "rl_robustness"
+seconds = 11621
+
+[[phase]]
+name = "jetson_specialization"
+seconds = 13945
+
+[[phase]]
+name = "deterministic_final_evaluation"
+seconds = 10648

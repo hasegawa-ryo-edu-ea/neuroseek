@@ -1,0 +1,28 @@
+# Disposable, real-Wikidata5M resume acceptance configuration.  This never
+# participates in the production schedule; it proves the exact trial runtime
+# can checkpoint after SIGTERM and continue the same immutable input binding.
+[run]
+mode = "trial"
+seed = 20260811
+budget_seconds = 30
+
+[training]
+batch_size = 4
+lr = 0.0003
+max_cuda_expand_edges = 262144
+navigator_candidate_cap = 64
+
+[checkpoint]
+seconds = 1
+retain_periodic = 4
+
+[hardware]
+checkpoint_window = 16
+sample_interval_seconds = 1.0
+
+[telemetry]
+enabled = false
+
+[[phase]]
+name = "hardware_cost_model"
+seconds = 30

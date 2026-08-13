@@ -1,0 +1,13 @@
+[package]
+name = "neuroseek-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic NEUROSEEK graph representation and Search VM"
+
+[lib]
+name = "neuroseek_core"
+path = "src/lib.rs"
+
+[lints]
+workspace = true

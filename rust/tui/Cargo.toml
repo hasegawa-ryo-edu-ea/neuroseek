@@ -1,0 +1,10 @@
+[package]
+name = "neuroseek-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Read-only NEUROSEEK terminal metrics dashboard"
+
+[[bin]]
+name = "neuroseek-tui"
+path = "src/main.rs"

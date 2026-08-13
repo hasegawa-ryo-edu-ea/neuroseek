@@ -1,0 +1,32 @@
+# Explicitly bounded integration-only configuration. It exists to exercise a
+# real CUDA graph rollout and the read-only trace dashboard without entering
+# the 50-hour production schedule.
+[run]
+mode = "trial"
+seed = 20260810
+budget_seconds = 30
+
+[training]
+batch_size = 4
+lr = 0.0003
+max_cuda_expand_edges = 262144
+navigator_candidate_cap = 128
+
+[checkpoint]
+seconds = 5
+retain_periodic = 4
+
+[hardware]
+checkpoint_window = 32
+sample_interval_seconds = 1.0
+
+[telemetry]
+enabled = true
+tegrastats_interval_seconds = 5
+warning_temperature_c = 80.0
+critical_temperature_c = 85.0
+critical_action = "checkpoint"
+
+[[phase]]
+name = "rl_2_3_hop"
+seconds = 30

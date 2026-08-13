@@ -1,0 +1,11 @@
+[workspace]
+members = ["rust/core", "rust/cli", "rust/tui"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

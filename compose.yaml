@@ -1,0 +1,80 @@
+name: neuroseek
+
+services:
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # This Jetson's Docker bridge cannot install its iptables raw-table
+      # isolation rule. Build dependency installation therefore uses the host
+      # network, avoiding a daemon/kernel change; runtime GPU services retain
+      # their normal explicit Compose networking.
+      network: host
+    image: neuroseek:jetson-r36.3-l4tml-r36.2
+    runtime: nvidia
+    # This host's Docker bridge cannot install its required iptables raw rule.
+    # NEUROSEEK exposes no network listener, so host mode restores container
+    # execution without changing Docker daemon or kernel settings.
+    network_mode: host
+    ipc: host
+    init: true
+    # Restart unexpected failures a few times, never turn a completed 50-hour
+    # budget into another uncontrolled run.
+    restart: on-failure:3
+    working_dir: /workspace
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PYTHONUNBUFFERED: "1"
+      NEUROSEEK_RUN_MODE: ${NEUROSEEK_RUN_MODE:-full}
+      NEUROSEEK_CONFIG: ${NEUROSEEK_CONFIG:-/workspace/config/full.toml}
+      NEUROSEEK_RUN_DIR: ${NEUROSEEK_RUN_DIR:-/workspace/runs/current}
+      # An explicitly empty value is meaningful for a derived run seeded from
+      # NEUROSEEK_PARENT_CHECKPOINT; do not replace it with the default.
+      NEUROSEEK_RESUME: ${NEUROSEEK_RESUME-1}
+      NEUROSEEK_PARENT_CHECKPOINT: ${NEUROSEEK_PARENT_CHECKPOINT-}
+    volumes:
+      - .:/workspace
+      - cargo-cache:/opt/cargo/registry
+      - rust-target:/workspace/target
+    command:
+      - bash
+      - -lc
+      - >-
+        exec python3 -m neuroseek.training.trainer --config "$${NEUROSEEK_CONFIG}"
+        --run-dir "$${NEUROSEEK_RUN_DIR}" $${NEUROSEEK_RESUME:+--resume}
+        $${NEUROSEEK_PARENT_CHECKPOINT:+--parent-checkpoint "$${NEUROSEEK_PARENT_CHECKPOINT}"}
+    healthcheck:
+      # The trainer owns a durable state file; this is intentionally not a GPU
+      # benchmark or a fake liveness metric.
+      test: ["CMD-SHELL", "test -f \"$${NEUROSEEK_RUN_DIR}/manifest.json\""]
+      interval: 30s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+
+  tui:
+    image: neuroseek:jetson-r36.3-l4tml-r36.2
+    profiles: ["tui"]
+    runtime: nvidia
+    network_mode: host
+    ipc: host
+    init: true
+    working_dir: /workspace
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      TERM: ${TERM:-xterm-256color}
+      COLORTERM: ${COLORTERM:-truecolor}
+    volumes:
+      - .:/workspace
+    stdin_open: true
+    tty: true
+    # The Rust TUI binary is added by the integration stream.  Keeping this
+    # command explicit makes a missing viewer visible rather than coupling the
+    # trainer lifecycle to an SSH terminal.
+    command: ["bash", "-lc", "exec neuroseek-tui --attach-current"]
+
+volumes:
+  cargo-cache:
+  rust-target:

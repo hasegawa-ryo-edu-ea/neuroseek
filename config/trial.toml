@@ -1,0 +1,27 @@
+[run]
+mode = "trial"
+seed = 20260810
+budget_seconds = 600
+
+[training]
+batch_size = 16
+lr = 0.0003
+max_cuda_expand_edges = 262144
+navigator_candidate_cap = 256
+
+[checkpoint]
+seconds = 60
+retain_periodic = 12
+
+[hardware]
+checkpoint_window = 256
+sample_interval_seconds = 1.0
+
+[telemetry]
+# Operational thresholds, not a claim about Jetson firmware shutdown limits.
+# The trainer must checkpoint at a safe boundary before acting on "checkpoint".
+enabled = true
+tegrastats_interval_seconds = 10
+warning_temperature_c = 80.0
+critical_temperature_c = 85.0
+critical_action = "checkpoint"
