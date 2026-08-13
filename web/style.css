@@ -39,6 +39,7 @@ body { margin: 0; min-width: 980px; background: var(--bg); letter-spacing: .01em
 canvas { display: block; width: 100%; height: 380px; margin: 12px 0; border-bottom: 1px solid var(--line); }
 .canvas-legend { display: flex; justify-content: center; gap: 9px; color: var(--muted); font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .legend { width: 24px; height: 2px; margin-top: 5px; }.legend.selected { background: var(--cyan); box-shadow: 0 0 9px var(--cyan); }.legend.alternative { background: var(--muted); }
+.legend.second { background: var(--green); box-shadow: 0 0 9px var(--green); }
 .command-deck { margin-top: 10px; color: var(--cyan); font: 10px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .input-row, .filter-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }.input-row span { color: var(--green); }
 input { min-width: 0; flex: 1; padding: 8px 10px; border: 1px solid var(--line); outline: none; background: var(--surface); color: var(--ink); font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }

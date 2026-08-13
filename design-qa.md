@@ -39,6 +39,6 @@ Primary interactions function-checked: launcher output, loopback health endpoint
 
 Console errors checked: JavaScript syntax was checked with `node --check`; no browser console is available.
 
-Comparison history: the supplied 2557×1377 screenshot was reviewed as the existing rendered baseline. The first iteration added visible drag/zoom/reset affordances, node selection, staged edge/node materialization, and staggered evidence/candidate/result reveals. The second iteration fixes the pointer-start/scene-coordinate mix-up, clamps pan range, increases the graph viewport, renders up to 18 real local edges in a radial graph layout, and exposes node/edge/relation/snapshot/view statistics. A current browser capture is still required for pixel-level comparison.
+Comparison history: the supplied 2557×1377 screenshot was reviewed as the existing rendered baseline. The first iteration added visible drag/zoom/reset affordances, node selection, staged edge/node materialization, and staggered evidence/candidate/result reveals. The second iteration fixes the pointer-start/scene-coordinate mix-up, clamps pan range, increases the graph viewport, renders up to 18 real local edges in a radial graph layout, and exposes node/edge/relation/snapshot/view statistics. The third iteration adds a delayed, selected-branch second-hop expansion sourced from the local graph, with a separate green graph layer and explicit `SECOND HOP · LOCAL ONLY` legend. A current browser capture is still required for pixel-level comparison.
 
 final result: blocked

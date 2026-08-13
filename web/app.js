@@ -32,6 +32,7 @@ function summary(data) {
     `<span>NODE <b>${data.root.id}</b></span>`,
     `<span>LOCAL EDGES <b>${data.edges.length}</b></span>`,
     `<span>RELATIONS <b>${relationCount}</b></span>`,
+    `<span>SECOND HOP <b>${data.second ? data.second.edges.length : '…'}</b></span>`,
     `<span>SNAPSHOT <b>${data.graph.entities.toLocaleString()}</b></span>`,
     `<span id="view-stat">VIEW <b>${scene.zoom.toFixed(2)}×</b></span>`,
   ].join('');
@@ -42,6 +43,20 @@ function updateSelection() {
   const edge = graphData.edges[scene.selected];
   $('#selected-edge').textContent = `${String(scene.selected + 1).padStart(2, '0')}  ${edge.relation.label} → ${edge.target.label}`;
   [...$('#facts').children].forEach((node, index) => node.classList.toggle('selected-fact', index === scene.selected));
+}
+
+async function expandSecond(index) {
+  if (!graphData || !graphData.edges[index]) return;
+  const source = graphData;
+  const entity = source.edges[index].target.id;
+  try {
+    const expanded = await api(`/api/graph?entity=${encodeURIComponent(entity)}&lang=${lang}`);
+    if (graphData !== source) return;
+    source.second = { from: index, root: expanded.root, edges: expanded.edges.slice(0, 8) };
+    scene.revealSecond = performance.now();
+    summary(source);
+    notice(lang === 'ja' ? `二段目: ${expanded.root.label} から ${source.second.edges.length} 本の実エッジを展開しました。` : `Second hop: expanded ${source.second.edges.length} real edges from ${expanded.root.label}.`);
+  } catch (error) { notice(error.message); }
 }
 
 function viewStat() {
@@ -96,10 +111,13 @@ function renderGraph(data, animate = true) {
     : `<li>${lang === 'ja' ? '該当するローカルエッジはありません。' : 'No matching local edges.'}</li>`;
   scene.selected = 0;
   scene.reveal = animate ? performance.now() : 0;
+  scene.revealSecond = 0;
+  if (animate) data.second = null;
   resetView();
   summary(data);
   updateSelection();
   draw(data);
+  if (animate) window.setTimeout(() => { if (graphData === data) expandSecond(0); }, 850);
 }
 
 function resetView() { scene.x = 0; scene.y = 0; scene.zoom = 1; viewStat(); }
@@ -107,7 +125,7 @@ function resetView() { scene.x = 0; scene.y = 0; scene.zoom = 1; viewStat(); }
 function nodesFor(data, width, height) {
   const root = { x: width * .5, y: height * .47, label: data.root.label, id: data.root.id };
   const count = Math.min(18, data.edges.length);
-  const targets = data.edges.slice(0, count).map((edge, index) => {
+  const first = data.edges.slice(0, count).map((edge, index) => {
     const angle = -Math.PI / 2 + (Math.PI * 2 * index / Math.max(1, count));
     const ring = index % 2 ? .33 : .39;
     return {
@@ -115,10 +133,17 @@ function nodesFor(data, width, height) {
       y: height * .47 + Math.sin(angle) * height * .35,
       label: edge.target.label,
       id: edge.target.id,
-      relation: edge.relation.label,
+      relation: edge.relation.label, level: 1,
     };
   });
-  return [root, ...targets];
+  const second = ((data.second && data.second.edges) || []).map((edge, index, rows) => {
+    const origin = first[data.second.from] || root;
+    const base = Math.atan2(origin.y - root.y, origin.x - root.x);
+    const spread = (index - (rows.length - 1) / 2) * .28;
+    const distance = Math.min(width, height) * .27;
+    return { x: origin.x + Math.cos(base + spread) * distance, y: origin.y + Math.sin(base + spread) * distance, label: edge.target.label, id: edge.target.id, relation: edge.relation.label, level: 2, parent: data.second.from };
+  });
+  return { root, first, second, all: [root, ...first, ...second] };
 }
 
 function draw(data) {
@@ -135,7 +160,7 @@ function draw(data) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
     const nodes = nodesFor(data, width, height);
-    scene.nodes = nodes;
+    scene.nodes = nodes.all;
     const elapsed = scene.reveal ? now - scene.reveal : 10000;
     ctx.save();
     ctx.translate(scene.x, scene.y);
@@ -143,7 +168,7 @@ function draw(data) {
     ctx.textAlign = 'center';
     ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
     data.edges.slice(0, 18).forEach((edge, index) => {
-      const node = nodes[index + 1];
+      const node = nodes.first[index];
       const visible = Math.max(0, Math.min(1, (elapsed - index * 95) / 350));
       if (!visible) return;
       const active = index === scene.selected;
@@ -153,29 +178,38 @@ function draw(data) {
       ctx.setLineDash(active ? [9, 8] : []);
       ctx.lineDashOffset = active ? -(now / 18) : 0;
       ctx.beginPath();
-      ctx.moveTo(nodes[0].x, nodes[0].y);
-      ctx.quadraticCurveTo((nodes[0].x + node.x) / 2, (nodes[0].y + node.y) / 2 - 18, node.x, node.y);
+      ctx.moveTo(nodes.root.x, nodes.root.y);
+      ctx.quadraticCurveTo((nodes.root.x + node.x) / 2, (nodes.root.y + node.y) / 2 - 18, node.x, node.y);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = visible * (active ? 1 : .7);
       ctx.fillStyle = active ? '#2fe6ff' : '#8b949e';
-      ctx.fillText(edge.relation.label.slice(0, 18), (nodes[0].x + node.x) / 2, (nodes[0].y + node.y) / 2 - 12);
+      ctx.fillText(edge.relation.label.slice(0, 18), (nodes.root.x + node.x) / 2, (nodes.root.y + node.y) / 2 - 12);
     });
-    nodes.forEach((node, index) => {
-      const visible = index === 0 ? Math.max(0, Math.min(1, elapsed / 300)) : Math.max(0, Math.min(1, (elapsed - (index - 1) * 95) / 350));
+    const secondElapsed = scene.revealSecond ? now - scene.revealSecond : 0;
+    ((data.second && data.second.edges) || []).forEach((edge, index) => {
+      const node = nodes.second[index]; const origin = nodes.first[data.second.from];
+      const visible = Math.max(0, Math.min(1, (secondElapsed - index * 125) / 420));
       if (!visible) return;
-      const hot = index === 0 || index - 1 === scene.selected;
+      ctx.globalAlpha = visible * .9; ctx.strokeStyle = '#00d992'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 6]); ctx.lineDashOffset = -(now / 22);
+      ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.quadraticCurveTo((origin.x + node.x) / 2, (origin.y + node.y) / 2 + 15, node.x, node.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha = visible; ctx.fillStyle = '#00d992'; ctx.fillText(edge.relation.label.slice(0, 16), (origin.x + node.x) / 2, (origin.y + node.y) / 2 + 18);
+    });
+    nodes.all.forEach((node, index) => {
+      const visible = node.level === 2 ? Math.max(0, Math.min(1, (secondElapsed - (index - nodes.first.length - 1) * 125) / 420)) : (index === 0 ? Math.max(0, Math.min(1, elapsed / 300)) : Math.max(0, Math.min(1, (elapsed - (index - 1) * 95) / 350)));
+      if (!visible) return;
+      const hot = index === 0 || node.level === 1 && index - 1 === scene.selected;
       const radius = (hot ? 14 : 7) * (.65 + .35 * visible);
       ctx.globalAlpha = visible;
       ctx.fillStyle = '#101010';
-      ctx.strokeStyle = hot ? '#2fe6ff' : '#8b949e';
+      ctx.strokeStyle = hot ? '#2fe6ff' : node.level === 2 ? '#00d992' : '#8b949e';
       ctx.lineWidth = hot ? 2.5 : 1.5;
       ctx.beginPath(); ctx.arc(node.x, node.y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       if (hot) { ctx.globalAlpha = visible * (.16 + .13 * Math.sin(now / 180)); ctx.beginPath(); ctx.arc(node.x, node.y, radius + 9 + 2 * Math.sin(now / 220), 0, Math.PI * 2); ctx.stroke(); }
       ctx.globalAlpha = visible;
-      ctx.fillStyle = hot ? '#f2f2f2' : '#bdbdbd';
+      ctx.fillStyle = hot ? '#f2f2f2' : node.level === 2 ? '#d9fff1' : '#bdbdbd';
       ctx.fillText(node.label.slice(0, 19), node.x, node.y + 26);
-      ctx.fillStyle = hot ? '#2fe6ff' : '#8b949e';
+      ctx.fillStyle = hot ? '#2fe6ff' : node.level === 2 ? '#00d992' : '#8b949e';
       ctx.fillText(node.id, node.x, node.y + 39);
     });
     ctx.restore();
@@ -211,8 +245,8 @@ function graphSetup() {
     scene.drag = null;
     if (moved >= 6 || !graphData) return;
     const world = { x: (p.x - scene.x) / scene.zoom, y: (p.y - scene.y) / scene.zoom };
-    const hit = scene.nodes.findIndex((node, index) => index > 0 && Math.hypot(world.x - node.x, world.y - node.y) < 24);
-    if (hit > 0) { scene.selected = hit - 1; updateSelection(); const edge = graphData.edges[scene.selected]; notice(lang === 'ja' ? `${edge.relation.label} → ${edge.target.label} を選択しました。` : `Selected ${edge.relation.label} → ${edge.target.label}.`); }
+    const hit = scene.nodes.find(node => node.level === 1 && Math.hypot(world.x - node.x, world.y - node.y) < 24);
+    if (hit) { scene.selected = graphData.edges.findIndex(edge => edge.target.id === hit.id); updateSelection(); expandSecond(scene.selected); const edge = graphData.edges[scene.selected]; notice(lang === 'ja' ? `${edge.relation.label} → ${edge.target.label} を選択しました。二段目を展開します。` : `Selected ${edge.relation.label} → ${edge.target.label}. Expanding its second hop.`); }
   };
   canvas.addEventListener('pointerup', finish);
   canvas.addEventListener('pointercancel', finish);
