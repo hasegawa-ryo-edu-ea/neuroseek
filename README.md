@@ -177,6 +177,24 @@ When a healthy trainer already exists, this opens a read-only terminal
 dashboard instead of starting another training job. For a non-interactive
 attach path, use `./up.sh --no-tui`.
 
+### Showcase TUI
+
+For a presentation-oriented, high-contrast terminal display, build the
+read-only Rust TUI and attach it to the current run:
+
+```bash
+cargo build --release -p neuroseek-tui
+./target/release/neuroseek-tui --attach-current --showcase --lang en
+```
+
+The showcase draws curriculum progress, proof/search signals, policy state,
+the latest durable search trace, and Jetson thermal/RAM gauges. It reads only
+`metrics.jsonl`; `Ctrl-C` closes the display and never pauses, resumes, or
+otherwise controls the trainer. Add `--once` for a single screenshot-friendly
+frame or `--no-color` for a plain log capture. Switch the whole dashboard with
+`--lang en` (English, the default) or `--lang ja` (Japanese). The short form
+`--lang=ja` is also supported.
+
 ## How to interpret a run
 
 NEUROSEEK records append-only metrics and durable manifests under `runs/`.

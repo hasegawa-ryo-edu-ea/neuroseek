@@ -110,6 +110,17 @@ cd /path/to/neuroseek
 
 既存の学習器が健全なら、新しい学習を始めず読み取り専用TUIを表示します。TUIなしで状態確認する場合は `./up.sh --no-tui` を使います。
 
+### 発表用Showcase TUI
+
+発表向けの高コントラスト表示は、読み取り専用Rust TUIをビルドして現在のrunへ接続します。
+
+```bash
+cargo build --release -p neuroseek-tui
+./target/release/neuroseek-tui --attach-current --showcase --lang ja
+```
+
+Showcaseはカリキュラム進行、探索・証明シグナル、方策状態、最新の永続検索トレース、Jetsonの温度/RAMゲージを表示します。読むのは`metrics.jsonl`だけです。`Ctrl-C`は表示を閉じるだけで、学習器の停止・再開・制御は一切行いません。1フレームだけ表示してスクリーンショットを撮る場合は`--once`、色なしのログ出力には`--no-color`を付けます。`--lang ja`で日本語、`--lang en`で英語（既定）へ切り替えられます。`--lang=ja`の短縮形も利用できます。
+
 ## 結果を読むときの注意
 
 `runs/` にはメトリクスとマニフェストが保存されます。初期の`cuda_search_microbenchmarks`フェーズでは、方策報酬や証明指標がゼロまたは`n/a`でも正常です。コストモデルとBehavior Cloningフェーズの後から、方策の品質指標が意味を持ちはじめます。
