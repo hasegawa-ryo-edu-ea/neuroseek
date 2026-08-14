@@ -31,6 +31,8 @@ body { margin: 0; min-width: 980px; background: var(--bg); letter-spacing: .01em
 .section-rule { height: 1px; margin: 20px 0; background: var(--line); }
 .facts { margin: 0; padding: 0; list-style: none; color: var(--muted); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .facts li { padding: 9px 0; border-bottom: 1px solid #292929; }
+.facts .fact-item { cursor: pointer; }
+.facts .fact-item:hover { color: var(--ink); background: rgba(47,230,255,.04); }
 .facts b { color: var(--cyan); font-weight: 500; }.facts em { color: var(--green); font-style: normal; }
 .theater { position: relative; overflow: hidden; padding: 22px 26px 18px; background: var(--bg); }
 .theater-head { display: flex; align-items: start; justify-content: space-between; }
@@ -68,10 +70,13 @@ footer { display: flex; align-items: center; justify-content: space-between; hei
 .graph-stage { position: relative; margin: 12px 0; border-bottom: 1px solid var(--line); }
 .graph-stage canvas { height: min(62vh, 650px); min-height: 500px; margin: 0; cursor: grab; touch-action: none; }
 .graph-stage canvas.dragging { cursor: grabbing; }
-.graph-controls { position: absolute; right: 0; bottom: 10px; display: flex; align-items: center; gap: 10px; color: var(--muted); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; }
+.graph-controls { position: absolute; right: 0; bottom: 10px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; max-width: calc(100% - 14px); color: var(--muted); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; }
 .graph-control { padding: 7px 9px !important; border-color: var(--line) !important; background: var(--surface) !important; color: var(--cyan) !important; font-size: 10px !important; }
 .graph-summary { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0 4px; color: var(--muted); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; }
 .graph-summary span { padding: 6px 8px; border: 1px solid var(--line); background: var(--surface); }.graph-summary b { color: var(--cyan); font-weight: 600; }
+.graph-path { display: flex; align-items: center; gap: 6px; min-height: 27px; overflow-x: auto; color: var(--muted); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.graph-path button { flex: 0 0 auto; padding: 5px 7px !important; border-color: var(--line) !important; background: var(--surface) !important; color: var(--cyan) !important; font-size: 10px !important; }
+.graph-path .path-current { color: var(--green) !important; border-color: var(--green) !important; }.graph-path .path-separator { color: var(--line); }
 .facts li { transition: background-color .25s, padding-left .25s; }
 .facts li.selected-fact { padding-left: 7px; border-left: 2px solid var(--cyan); background: rgba(47,230,255,.06); }
 .reveal-item, .result-arrive { opacity: 0; animation: materialize .46s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: var(--delay,0ms); }

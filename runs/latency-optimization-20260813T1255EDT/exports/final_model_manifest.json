@@ -1,0 +1,14 @@
+{
+  "ann_backend": "cuda_exact",
+  "checkpoint": {
+    "filename": "final.ckpt",
+    "sha256": "0c629cb5e94854b9dd8039fb457162a71d34b45057fe2591f6d3439f6875a174"
+  },
+  "provenance": {
+    "config_sha256": "658104380fd26158f44586e6bea8c0fe6dc891db8c9fa0eb34c262a5cb0baaa8",
+    "graph_manifest_sha256": "1b26a375f7c16d01f75a2d32e9a5d8acd56a62cd5f6ff7c4e9e48e80b1485c76",
+    "semantic_manifest_sha256": "996bd890890a28e7fd7d03b057e9536809bb5621f3fcda4862df14a9d120c9ec",
+    "task_split_manifest_sha256": "b17b3fc9b52d01efe6c4d677f6f4ae2a27d6d7c8dc996c10753cfb98bf17e0ce"
+  },
+  "tag": "jetson-specialized"
+}

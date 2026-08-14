@@ -857,85 +857,66 @@ fn operation_kind(step: &str) -> &'static str {
     }
 }
 
-fn operation_lane(step: &str) -> usize {
-    step.bytes()
-        .fold(0usize, |state, byte| state.wrapping_add(byte as usize))
-        % 4
-}
-
-fn render_lattice(trace: &str, color: bool, language: Language, width: usize) {
+/// Draw a fixed-height rooted program tree.  Search traces change on every
+/// refresh, but its 10 reserved leaf rows do not: that keeps the telemetry
+/// panel below from jumping as operators are added or removed.
+fn render_program_tree(trace: &str, color: bool, language: Language, width: usize) {
     let steps = operator_steps(trace);
     println!(
         "  {}",
         paint(
             t(
                 language,
-                "SEARCH LATTICE  ·  durable program path",
-                "探索ラティス  ·  永続プログラム経路"
+                "SEARCH PROGRAM TREE  ·  durable program path",
+                "探索プログラム樹形図  ·  永続プログラム経路"
             ),
             "1;96",
             color
         )
     );
-    println!("  {}", paint(t(language, "Every junction is drawn from the latest SearchTraceEvent; no simulated path is shown.", "すべての分岐は最新のSearchTraceEventから描画されています。模擬経路は表示しません。"), "2;37", color));
-    if steps.is_empty() {
-        println!(
-            "\n  {}",
+    println!(
+        "  {}",
+        paint(
             t(
                 language,
-                "Awaiting a durable search trace…",
-                "永続検索トレースを待機しています…"
-            )
-        );
-        return;
-    }
-    let lanes = [4usize, 24, 44, 64];
-    let mut previous = operation_lane(steps[0]);
-    for (index, step) in steps.iter().enumerate() {
-        let lane = operation_lane(step);
-        if index > 0 {
-            let low = lanes[previous].min(lanes[lane]);
-            let high = lanes[previous].max(lanes[lane]);
-            let branch = if lane > previous {
-                '╲'
-            } else if lane < previous {
-                '╱'
-            } else {
-                '│'
-            };
-            println!(
-                "  {:low$}{}{}",
-                "",
-                paint(&branch.to_string(), "1;35", color),
-                paint(
-                    &"─".repeat(high.saturating_sub(low + 1).min(width / 2)),
-                    "2;36",
-                    color
-                )
-            );
-        }
-        let marker = if index + 1 == steps.len() {
-            "◉"
-        } else {
-            "●"
-        };
-        let text = clipped(step, width.saturating_sub(lanes[lane] + 20));
-        println!(
-            "  {}{} {}  {}",
-            " ".repeat(lanes[lane]),
-            paint(
-                marker,
+                "Fixed tree slots: only durable SearchTraceEvent operators are shown.",
+                "固定スロットの樹形図です。SearchTraceEventに保存済みの演算子だけを表示します。"
+            ),
+            "2;37",
+            color
+        )
+    );
+    println!(
+        "  {} {}",
+        paint("◉", "1;95", color),
+        paint(t(language, "QUERY ROOT", "問合せルート"), "1;97", color)
+    );
+    for index in 0..10 {
+        let last_slot = index == 9;
+        let connector = if last_slot { "└─" } else { "├─" };
+        let (marker, text, style) = match steps.get(index) {
+            Some(step) => (
+                if index + 1 == steps.len() {
+                    "◆"
+                } else {
+                    "●"
+                },
+                clipped(step, width.saturating_sub(22)),
                 if index + 1 == steps.len() {
                     "1;95"
                 } else {
                     "1;36"
                 },
-                color
             ),
+            None => ("·", "—".to_owned(), "2;37"),
+        };
+        println!(
+            "  {} {} {}  {}",
+            paint(connector, "2;36", color),
+            paint(marker, style, color),
             paint(&format!("{:02}", index + 1), "2;37", color),
-            paint(&text, "1;97", color)
+            paint(&text, if text == "—" { "2;37" } else { "1;97" }, color)
         );
-        previous = lane;
     }
 }
 
@@ -970,7 +951,7 @@ fn render_explore(
         paint(event.get("reward"), "1;97", color)
     );
     println!();
-    render_lattice(trace.get("trace"), color, language, width);
+    render_program_tree(trace.get("trace"), color, language, width);
     println!();
     println!(
         "  {}  {}  {}  {}  {}  {}",

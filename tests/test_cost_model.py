@@ -9,7 +9,8 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
 from neuroseek.cost_model import CostModelError, load_records, train_cost_model
-from neuroseek.cost_model.model import load_model
+from neuroseek.cost_model.model import CostModel, load_model
+from neuroseek.training.trainer import _latency_model_status
 
 
 def _measured_records(path: Path) -> None:
@@ -54,3 +55,15 @@ def test_skip_invalid_only_accepts_real_latency_rows(tmp_path):
     source = tmp_path / "mixed.jsonl"
     source.write_text('{"category":"TrainingEvent","reward":1}\n{"operation":"ANN","latency_ms":1.5,"ann_k":8}\n{"operation":"ANN","latency_ms":2.0,"ann_k":16}\n{"operation":"ANN","latency_ms":2.5,"ann_k":32}\n')
     assert len(load_records([source], strict=False)) == 3
+
+
+def test_latency_reward_rejects_nonmonotonic_or_unvalidated_surrogate():
+    # A negative candidate-count coefficient would falsely reward larger graph
+    # expansions as lower latency.  It must never reach the PPO reward path.
+    operations = ("graph_expand",)
+    weights = [1.0, 0.0] + [0.0] * 12
+    weights[3] = -0.1  # candidate_count is the second numeric feature.
+    unsafe = CostModel(operations, tuple(weights), 1e-3, 20, 5, {"mape_percent": 10.0})
+    assert _latency_model_status(unsafe) == "rejected_nonmonotonic_candidate_cost"
+    unvalidated = CostModel(operations, tuple([1.0, 0.0] + [0.0] * 12), 1e-3, 20, 5, {"mape_percent": 80.0})
+    assert _latency_model_status(unvalidated) == "rejected_validation_error"

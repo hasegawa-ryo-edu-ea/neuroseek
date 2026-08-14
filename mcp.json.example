@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "neuroseek": {
+      "command": "python3",
+      "args": ["/absolute/path/to/neuroseek/python/neuroseek/mcp_server.py"],
+      "env": {
+        "NEUROSEEK_ROOT": "/absolute/path/to/neuroseek"
+      }
+    }
+  }
+}

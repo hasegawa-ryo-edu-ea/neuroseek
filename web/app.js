@@ -1,16 +1,21 @@
 const strings = {
-  en: {subtitle:'LEARNED KNOWLEDGE GRAPH SEARCH',isolated:'TRAINER ISOLATED',navSearch:'01 / SEARCH',navPolicy:'02 / POLICY',navAbout:'03 / METHOD',evidence:'LOCAL EVIDENCE',awaiting:'AWAITING QUERY',awaitingDetail:'Enter a word, Q-ID, or place to inspect this Jetson\'s local graph.',facts:'OBSERVED FACTS',factsEmpty:'The selected entity\'s real outgoing graph edges will appear here.',boundary:'EVIDENCE BOUNDARY',boundaryDetail:'Names are resolved through Wikidata. Only edges shown here are stored in the local read-only snapshot.',theater:'GRAPH NAVIGATION THEATER',startTitle:'ASK THE GRAPH',selectedPath:'selected local edge',alternatives:'alternative local edge',graphHint:'DRAG TO PAN · WHEEL TO ZOOM · CLICK A NODE',queryLabel:'QUERY INPUT — natural language or Wikidata Q-ID',searchButton:'EXPLORE',relationLabel:'RELATION FILTER',filterButton:'FILTER',story:'THE STORY',asked:'ASKED',askedDetail:'Your term becomes an entity candidate.',found:'FOUND',foundDetail:'Choose a candidate available in the local snapshot.',explored:'EXPLORED',exploredDetail:'Follow real outgoing graph edges.',verified:'BOUNDARY',verifiedDetail:'The graph view never claims online context as local evidence.',policyEyebrow:'LEARNED POLICY DEMONSTRATION',policyTitle:'A policy chooses the graph program.',policyDetail:'This runs the immutable presentation checkpoint against a held-out graph task. The reference answer is not passed to the policy.',runPolicy:'RUN HELD-OUT TASK',policyReady:'Ready. This action is CPU-only and does not interfere with training.',methodEyebrow:'WHY NEUROSEEK',methodTitle:'Learn → Explore → Prove',learn:'LEARN',learnDetail:'A learned policy selects graph operations.',explore:'EXPLORE',exploreDetail:'The program traverses the memory-mapped local graph.',prove:'PROVE',proveDetail:'A separate validator accepts reconstructable evidence only.',footer:'STATUS: READY'},
-  ja: {subtitle:'学習済み知識グラフ探索',isolated:'学習器から分離',navSearch:'01 / 検索',navPolicy:'02 / 方策',navAbout:'03 / 手法',evidence:'ローカル証拠',awaiting:'検索待機中',awaitingDetail:'単語・Q-ID・場所を入力して、このJetson内のグラフを調べます。',facts:'観測した事実',factsEmpty:'選んだ対象から出る実際のローカルグラフエッジをここに表示します。',boundary:'証拠の境界',boundaryDetail:'名称はWikidataで解決します。ここに表示するエッジだけがローカル読み取り専用スナップショットの証拠です。',theater:'グラフ探索シアター',startTitle:'グラフに問いかける',selectedPath:'選択中のローカルエッジ',alternatives:'他のローカルエッジ',graphHint:'ドラッグで移動 · ホイールで拡大 · ノードを選択',queryLabel:'クエリ入力 — 自然言語または Wikidata Q-ID',searchButton:'探索',relationLabel:'関係フィルタ',filterButton:'絞り込み',story:'ストーリー',asked:'質問',askedDetail:'入力語を候補エンティティへ解決します。',found:'発見',foundDetail:'ローカルスナップショットで使える候補を選びます。',explored:'探索',exploredDetail:'実際の出力グラフエッジをたどります。',verified:'境界',verifiedDetail:'オンラインの説明をローカル証拠として扱いません。',policyEyebrow:'学習済み方策デモ',policyTitle:'方策がグラフプログラムを選ぶ。',policyDetail:'不変の発表用チェックポイントを未使用グラフ課題で実行します。正解は方策に渡しません。',runPolicy:'未使用課題を実行',policyReady:'準備完了。この操作はCPU専用で、学習を妨害しません。',methodEyebrow:'NEUROSEEKの特徴',methodTitle:'学習 → 探索 → 証明',learn:'学習',learnDetail:'学習済み方策がグラフ演算を選びます。',explore:'探索',exploreDetail:'プログラムがメモリマップされたローカルグラフをたどります。',prove:'証明',proveDetail:'別系統の検証器が再構築可能な証拠だけを受理します。',footer:'状態: 準備完了'}
+  en: {subtitle:'LEARNED KNOWLEDGE GRAPH SEARCH',isolated:'TRAINER ISOLATED',navSearch:'01 / SEARCH',navPolicy:'02 / POLICY',navAbout:'03 / METHOD',evidence:'LOCAL EVIDENCE',awaiting:'AWAITING QUERY',awaitingDetail:'Enter a word, Q-ID, or place to inspect this Jetson\'s local graph.',facts:'OBSERVED FACTS',factsEmpty:'The selected entity\'s real outgoing graph edges will appear here.',boundary:'EVIDENCE BOUNDARY',boundaryDetail:'Names are resolved through Wikidata. Only edges shown here are stored in the local read-only snapshot.',theater:'GUIDED GRAPH EXPLORER',startTitle:'ASK THE GRAPH',selectedPath:'selected local edge',alternatives:'other local edges',graphHint:'PREV/NEXT OR ←/→ SELECT · FOCUS CENTERS THE ROUTE · DRAG/WHEEL INSPECT THE MAP',previous:'PREV',next:'NEXT',focus:'FOCUS',expand:'EXPAND',policyPath:'POLICY PATH',home:'HOME',queryLabel:'QUERY INPUT — natural language or Wikidata Q-ID',searchButton:'EXPLORE',relationLabel:'RELATION FILTER',filterButton:'FILTER',story:'THE STORY',asked:'ASKED',askedDetail:'Your term becomes an entity candidate.',found:'FOUND',foundDetail:'Choose a candidate available in the local snapshot.',explored:'EXPLORED',exploredDetail:'Follow real outgoing graph edges.',verified:'BOUNDARY',verifiedDetail:'The graph view never claims online context as local evidence.',policyEyebrow:'LEARNED POLICY DEMONSTRATION',policyTitle:'A policy chooses the graph program.',policyDetail:'This runs the immutable presentation checkpoint against a held-out graph task. The reference answer is not passed to the policy.',runPolicy:'RUN HELD-OUT TASK',policyReady:'Ready. This action is CPU-only and does not interfere with training.',methodEyebrow:'WHY NEUROSEEK',methodTitle:'Learn → Explore → Prove',learn:'LEARN',learnDetail:'A learned policy selects graph operations.',explore:'EXPLORE',exploreDetail:'The program traverses the memory-mapped local graph.',prove:'PROVE',proveDetail:'A separate validator accepts reconstructable evidence only.',footer:'STATUS: READY'},
+  ja: {subtitle:'学習済み知識グラフ探索',isolated:'学習器から分離',navSearch:'01 / 検索',navPolicy:'02 / 方策',navAbout:'03 / 手法',evidence:'ローカル証拠',awaiting:'検索待機中',awaitingDetail:'単語・Q-ID・場所を入力して、このJetson内のグラフを調べます。',facts:'観測した事実',factsEmpty:'選んだ対象から出る実際のローカルグラフエッジをここに表示します。',boundary:'証拠の境界',boundaryDetail:'名称はWikidataで解決します。ここに表示するエッジだけがローカル読み取り専用スナップショットの証拠です。',theater:'案内型グラフ探索',startTitle:'グラフに問いかける',selectedPath:'選択中のローカルエッジ',alternatives:'他のローカルエッジ',graphHint:'前へ/次へ または ←/→ で選択 · 中央表示で経路に戻る · ドラッグ/ホイールで全体を確認',previous:'前へ',next:'次へ',focus:'中央表示',expand:'一段展開',policyPath:'方策経路',home:'全体表示',queryLabel:'クエリ入力 — 自然言語または Wikidata Q-ID',searchButton:'探索',relationLabel:'関係フィルタ',filterButton:'絞り込み',story:'ストーリー',asked:'質問',askedDetail:'入力語を候補エンティティへ解決します。',found:'発見',foundDetail:'ローカルスナップショットで使える候補を選びます。',explored:'探索',exploredDetail:'実際の出力グラフエッジをたどります。',verified:'境界',verifiedDetail:'オンラインの説明をローカル証拠として扱いません。',policyEyebrow:'学習済み方策デモ',policyTitle:'方策がグラフプログラムを選ぶ。',policyDetail:'不変の発表用チェックポイントを未使用グラフ課題で実行します。正解は方策に渡しません。',runPolicy:'未使用課題を実行',policyReady:'準備完了。この操作はCPU専用で、学習を妨害しません。',methodEyebrow:'NEUROSEEKの特徴',methodTitle:'学習 → 探索 → 証明',learn:'学習',learnDetail:'学習済み方策がグラフ演算を選びます。',explore:'探索',exploreDetail:'プログラムがメモリマップされたローカルグラフをたどります。',prove:'証明',proveDetail:'別系統の検証器が再構築可能な証拠だけを受理します。',footer:'状態: 準備完了'}
 };
+
+strings.en.graphHint = 'CLICK A WORD TO OPEN ITS LOCAL FACTS · PREV/NEXT OR ←/→ SELECT · FOCUS CENTERS THE ROUTE';
+strings.ja.graphHint = '単語をクリックすると、そのノードのローカル事実を開きます · 前へ/次へ または ←/→ で選択';
 
 let lang = 'ja';
 let selected = null;
 let graphData = null;
 let policyData = null;
 let graphMode = 'local';
+let navigation = [];
 const $ = selector => document.querySelector(selector);
 const scene = { x: 0, y: 0, zoom: 1, drag: null, selected: 0, reveal: 0, animation: 0, nodes: [], size: { w: 0, h: 0 } };
-const t = key => strings[lang][key] || key;
+const controlStrings = { en: { back: 'BACK', expand: 'OPEN NODE' }, ja: { back: '戻る', expand: 'ノードを開く' } };
+const t = key => strings[lang][key] || controlStrings[lang][key] || key;
 const notice = value => { $('#notice').textContent = value; };
 const stage = value => { $('#story-state').textContent = value; };
 
@@ -34,7 +39,6 @@ function summary(data) {
     `<span>NODE <b>${data.root.id}</b></span>`,
     `<span>LOCAL EDGES <b>${data.edges.length}</b></span>`,
     `<span>RELATIONS <b>${relationCount}</b></span>`,
-    `<span>SECOND HOP <b>${data.second ? data.second.edges.length : '…'}</b></span>`,
     `<span>SNAPSHOT <b>${data.graph.entities.toLocaleString()}</b></span>`,
     `<span id="view-stat">VIEW <b>${scene.zoom.toFixed(2)}×</b></span>`,
   ].join('');
@@ -45,6 +49,54 @@ function updateSelection() {
   const edge = graphData.edges[scene.selected];
   $('#selected-edge').textContent = `${String(scene.selected + 1).padStart(2, '0')}  ${edge.relation.label} → ${edge.target.label}`;
   [...$('#facts').children].forEach((node, index) => node.classList.toggle('selected-fact', index === scene.selected));
+}
+
+function selectEdge(index, { focus = true, expand = false } = {}) {
+  if (!graphData || !graphData.edges.length) return;
+  scene.selected = (index + graphData.edges.length) % graphData.edges.length;
+  updateSelection();
+  if (focus) focusSelected();
+  if (expand) openSelectedNode();
+}
+
+function renderPath() {
+  const path = $('#graph-path');
+  path.replaceChildren();
+  navigation.forEach((node, index) => {
+    if (index) { const separator = document.createElement('span'); separator.className = 'path-separator'; separator.textContent = '›'; path.appendChild(separator); }
+    const button = document.createElement('button');
+    button.textContent = node.label || node.identifier;
+    button.className = index === navigation.length - 1 ? 'path-current' : '';
+    button.title = node.identifier;
+    button.onclick = () => openPath(index);
+    path.appendChild(button);
+  });
+  $('#graph-back').disabled = navigation.length < 2;
+}
+
+async function navigateTo(candidate, { replace = false } = {}) {
+  const entry = { identifier: candidate.identifier, label: candidate.label || candidate.identifier };
+  if (replace) navigation[navigation.length - 1] = entry;
+  else navigation.push(entry);
+  selected = entry;
+  $('#relation').value = '';
+  renderPath();
+  await loadGraph();
+}
+
+async function openPath(index) {
+  if (index < 0 || index >= navigation.length) return;
+  navigation = navigation.slice(0, index + 1);
+  selected = navigation[index];
+  $('#relation').value = '';
+  renderPath();
+  await loadGraph();
+}
+
+async function openSelectedNode() {
+  if (!graphData || !graphData.edges[scene.selected]) return;
+  const edge = graphData.edges[scene.selected];
+  await navigateTo({ identifier: edge.target.id, label: edge.target.label });
 }
 
 async function expandSecond(index) {
@@ -90,7 +142,7 @@ async function search() {
   } catch (error) { notice(error.message); stage('ERROR'); }
 }
 
-async function select(candidate) { selected = candidate; $('#relation').value = ''; await loadGraph(); }
+async function select(candidate) { navigation = []; await navigateTo(candidate); }
 
 async function loadGraph() {
   if (!selected) return;
@@ -107,24 +159,47 @@ async function loadGraph() {
 }
 
 function renderGraph(data, animate = true) {
+  if (navigation.length) { navigation[navigation.length - 1] = { identifier: data.root.id, label: data.root.label }; renderPath(); }
   $('#graph-title').textContent = `${data.root.label}  [${data.root.id}]`;
   $('#entity-card').className = 'entity-card result-arrive';
   $('#entity-card').innerHTML = `<strong>${data.root.label}</strong><p>${data.root.id} · ${t('evidence')}</p>${data.relation_filter ? `<p>${t('relationLabel')}: ${data.relation_filter.label} [${data.relation_filter.identifier}]</p>` : ''}`;
   $('#facts').innerHTML = data.edges.length
-    ? data.edges.map((edge, index) => `<li class="reveal-item" style="--delay:${180 + index * 58}ms"><b>${String(index + 1).padStart(2, '0')}</b> <em>${edge.relation.label}</em><br>→ ${edge.target.label} <span>[${edge.target.id}]</span></li>`).join('')
+    ? data.edges.map((edge, index) => `<li class="fact-item reveal-item" data-edge="${index}" style="--delay:${180 + index * 58}ms"><b>${String(index + 1).padStart(2, '0')}</b> <em>${edge.relation.label}</em><br>→ ${edge.target.label} <span>[${edge.target.id}]</span></li>`).join('')
     : `<li>${lang === 'ja' ? '該当するローカルエッジはありません。' : 'No matching local edges.'}</li>`;
   scene.selected = 0;
   scene.reveal = animate ? performance.now() : 0;
   scene.revealSecond = 0;
-  if (animate) data.second = null;
+  data.second = null;
   resetView();
   summary(data);
   updateSelection();
   draw(data);
-  if (animate) window.setTimeout(() => { if (graphData === data) expandSecond(0); }, 850);
+  $('#facts').querySelectorAll('[data-edge]').forEach(node => node.onclick = () => {
+    const index = Number(node.dataset.edge);
+    selectEdge(index, { focus: false });
+    openSelectedNode();
+  });
+  // Start with a legible route, not an arbitrary corner of a radial map.
+  requestAnimationFrame(() => { if (graphData === data) focusSelected(); });
 }
 
 function resetView() { scene.x = 0; scene.y = 0; scene.zoom = 1; viewStat(); }
+
+function focusSelected() {
+  if (!graphData || !graphData.edges[scene.selected]) return;
+  const canvas = $('#graph-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const width = rect.width || scene.size.w, height = rect.height || scene.size.h;
+  if (!width || !height) return;
+  const nodes = nodesFor(graphData, width, height);
+  const target = nodes.first[scene.selected];
+  // Keep the selected fact and its source in the center of the viewport. This
+  // makes each edge a stable, readable destination instead of a free-flying map.
+  scene.x = width / 2 - (nodes.root.x + target.x) * scene.zoom / 2;
+  scene.y = height / 2 - (nodes.root.y + target.y) * scene.zoom / 2;
+  clampView();
+  viewStat();
+}
 
 function nodesFor(data, width, height) {
   const root = { x: width * .5, y: height * .47, label: data.root.label, id: data.root.id };
@@ -303,7 +378,13 @@ function graphSetup() {
     }
     if (!graphData) return;
     const hit = scene.nodes.find(node => node.level === 1 && Math.hypot(world.x - node.x, world.y - node.y) < 24);
-    if (hit) { scene.selected = graphData.edges.findIndex(edge => edge.target.id === hit.id); updateSelection(); expandSecond(scene.selected); const edge = graphData.edges[scene.selected]; notice(lang === 'ja' ? `${edge.relation.label} → ${edge.target.label} を選択しました。二段目を展開します。` : `Selected ${edge.relation.label} → ${edge.target.label}. Expanding its second hop.`); }
+    if (hit) {
+      const index = graphData.edges.findIndex(edge => edge.target.id === hit.id);
+      selectEdge(index);
+      const edge = graphData.edges[index];
+      notice(lang === 'ja' ? `${edge.relation.label} → ${edge.target.label} を開いています…` : `Opening ${edge.relation.label} → ${edge.target.label}…`);
+      openSelectedNode();
+    }
   };
   canvas.addEventListener('pointerup', finish);
   canvas.addEventListener('pointercancel', finish);
@@ -316,7 +397,23 @@ function graphSetup() {
     scene.y = p.y - before.y * scene.zoom;
     clampView(); viewStat();
   }, { passive: false });
-  $('#graph-reset').onclick = () => { resetView(); scene.selected = 0; updateSelection(); notice(lang === 'ja' ? 'グラフ視点を初期位置へ戻しました。' : 'Graph view reset.'); };
+  $('#graph-back').onclick = () => openPath(navigation.length - 2);
+  $('#graph-prev').onclick = () => selectEdge(scene.selected - 1);
+  $('#graph-next').onclick = () => selectEdge(scene.selected + 1);
+  $('#graph-focus').onclick = () => { focusSelected(); notice(lang === 'ja' ? '選択中の経路を中央へ表示しました。' : 'Centered the selected route.'); };
+  $('#graph-expand').onclick = () => {
+    if (!graphData) return;
+    openSelectedNode();
+  };
+  $('#graph-reset').onclick = () => { resetView(); notice(lang === 'ja' ? '全体マップの視点へ戻しました。' : 'Returned to the full neighborhood view.'); };
+  window.addEventListener('keydown', event => {
+    const editing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+    if (editing || !graphData || graphMode !== 'local') return;
+    if (event.key === 'ArrowLeft') { event.preventDefault(); selectEdge(scene.selected - 1); }
+    if (event.key === 'ArrowRight') { event.preventDefault(); selectEdge(scene.selected + 1); }
+    if (event.key.toLowerCase() === 'f') { event.preventDefault(); focusSelected(); }
+    if (event.key === 'Enter') { event.preventDefault(); openSelectedNode(); }
+  });
 }
 
 async function runPolicy() {

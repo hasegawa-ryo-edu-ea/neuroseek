@@ -1,0 +1,14 @@
+{
+  "ANN": 0,
+  "BACKTRACK": 0,
+  "EXPAND_ANY": 0,
+  "EXPAND_REL": 982,
+  "FILTER": 0,
+  "INTERSECT": 0,
+  "PRUNE": 0,
+  "SEED": 256,
+  "STOP": 256,
+  "TOPK": 0,
+  "UNION": 0,
+  "VERIFY": 6898
+}
