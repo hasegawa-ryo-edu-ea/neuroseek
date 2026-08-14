@@ -160,12 +160,16 @@ def _navigator_ranker(model: NavigatorPolicy, graph: object, device: torch.devic
     return rank
 
 
-def _collect_real_rollouts(model: NavigatorPolicy, graph: object, generator: object, device: torch.device, episodes: int, cuda_session: object, max_cuda_expand_edges: int, navigator_candidate_cap: int, *, episode_factory: object | None = None, semantic_search: object | None = None, hardware_cost_predictor: object | None = None, action_temperature: float = 1.0) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, object]]:
+def _collect_real_rollouts(model: NavigatorPolicy, graph: object, generator: object, device: torch.device, episodes: int, cuda_session: object, max_cuda_expand_edges: int, navigator_candidate_cap: int, *, episode_factory: object | None = None, semantic_search: object | None = None, hardware_cost_predictor: object | None = None, action_temperature: float = 1.0, latency_penalty_coefficient: float = 0.01, instruction_penalty: float = 0.0) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, object]]:
     """Execute sampled NEURO-ISA programs against real mmap graph episodes."""
     from neuroseek.search.environment import GraphSearchEnv
     states: list[torch.Tensor] = []; actions: list[torch.Tensor] = []; old_logprob: list[torch.Tensor] = []; returns: list[torch.Tensor] = []
     results = []
     trace_rows: list[tuple[object, object]] = []
+    predicted_latencies_ms: list[float] = []
+    model_latency_penalties: list[float] = []
+    instruction_penalties: list[float] = []
+    latency_penalties: list[float] = []
     for _ in range(episodes):
         query, proof = episode_factory() if episode_factory is not None else generator.next()
         env = GraphSearchEnv(graph, query, proof, cuda_session=cuda_session, max_cuda_expand_edges=max_cuda_expand_edges,
@@ -180,16 +184,26 @@ def _collect_real_rollouts(model: NavigatorPolicy, graph: object, generator: obj
         if not result.done:
             result = env.step(11)  # bounded environment always closes the trace
             prior = episode[-1]; episode[-1] = (prior[0], prior[1], prior[2], prior[3] + result.reward)
+        predicted_ms = None
         if hardware_cost_predictor is not None:
             predicted_ms = float(hardware_cost_predictor(result))
             if not np.isfinite(predicted_ms) or predicted_ms < 0:
                 raise FloatingPointError("hardware cost predictor emitted an invalid latency")
-            # This phase's coefficient is configured and logged; measured
-            # latency remains separate from reward shaping.
-            penalty = 0.01 * predicted_ms
+        # The cost model is trained from observed CUDA probes.  Pair it with a
+        # small explicit instruction cost so the policy optimizes the actual
+        # dominant end-to-end cost: repeated host-side policy/VM round trips.
+        model_latency_penalty = latency_penalty_coefficient * predicted_ms if predicted_ms is not None else 0.0
+        per_instruction_penalty = instruction_penalty * len(result.trace)
+        penalty = model_latency_penalty + per_instruction_penalty
+        if penalty:
             prior = episode[-1]
             episode[-1] = (prior[0], prior[1], prior[2], prior[3] - penalty)
             result = type(result)(**{**result.__dict__, "reward": result.reward - penalty})
+        if predicted_ms is not None:
+            predicted_latencies_ms.append(predicted_ms)
+        model_latency_penalties.append(model_latency_penalty)
+        instruction_penalties.append(per_instruction_penalty)
+        latency_penalties.append(penalty)
         running = 0.0
         for state, action, logprob, reward in reversed(episode):
             running = reward + 0.99 * running
@@ -207,7 +221,15 @@ def _collect_real_rollouts(model: NavigatorPolicy, graph: object, generator: obj
                "live_search_task": str(representative_query.task_id), "live_search_family": str(representative_query.family),
                "live_search_trace": " -> ".join(str(token) for token in representative.trace),
                "live_search_result": "VALID" if representative.valid_proof else ("ANSWER_UNVERIFIED" if representative.answer_correct else "NO_ANSWER"),
-               "operator_distribution": " ".join(f"{name}:{count}" for name, count in operator_counts.items() if count)}
+               "operator_distribution": " ".join(f"{name}:{count}" for name, count in operator_counts.items() if count),
+               "instructions_per_query": float(np.mean([len(result.trace) for result in results])),
+               # A rejected model is reported as unavailable, never as a
+               # fabricated 0 ms prediction.  The explicit instruction cost
+               # remains a real, transparent low-latency objective.
+               "predicted_latency_ms_per_query": float(np.mean(predicted_latencies_ms)) if predicted_latencies_ms else None,
+               "model_latency_penalty_per_query": float(np.mean(model_latency_penalties)) if predicted_latencies_ms else None,
+               "instruction_penalty_per_query": float(np.mean(instruction_penalties)),
+               "latency_penalty_per_query": float(np.mean(latency_penalties))}
     return torch.stack(states), torch.stack(actions), torch.stack(old_logprob), torch.stack(returns), metrics
 
 
@@ -381,6 +403,34 @@ def _measured_cuda_probe(cuda_backend: object, embeddings: object, graph: object
         raise FloatingPointError("CUDA microbenchmark produced invalid scores")
     return {"cuda_score_rows": float(rows), "cuda_score_latency_ms": score_ms,
             "cuda_expand_candidates": float(len(expanded)), "cuda_expand_latency_ms": expand_ms}
+
+
+def _latency_model_status(model: object) -> str:
+    """Accept a latency surrogate only when it is directionally safe.
+
+    A model trained on an under-varied probe set can fit noise with a negative
+    candidate-count coefficient.  That would reward larger expansions as
+    *faster*, which is the opposite of the low-latency objective.  Do not use
+    such a surrogate for policy rewards; retain the explicit instruction cost
+    until a representative measured model is available.
+    """
+    metrics = getattr(model, "metrics", {})
+    try:
+        mape = float(metrics.get("mape_percent", float("inf")))
+    except (AttributeError, TypeError, ValueError):
+        return "rejected_missing_validation"
+    if not np.isfinite(mape) or mape > 50.0:
+        return "rejected_validation_error"
+    try:
+        predictions = [float(model.predict("graph_expand", frontier_size=1, candidate_count=count))
+                       for count in (1, 4, 16, 64, 256, 1024, 4096)]
+    except (AttributeError, TypeError, ValueError):
+        return "rejected_invalid_predictor"
+    if not all(np.isfinite(value) and value >= 0.0 for value in predictions):
+        return "rejected_invalid_prediction"
+    if any(later + 1e-9 < earlier for earlier, later in zip(predictions, predictions[1:])):
+        return "rejected_nonmonotonic_candidate_cost"
+    return "accepted"
 
 
 def _write_json_atomic(path: Path, value: object) -> None:
@@ -723,12 +773,18 @@ def main(argv: list[str] | None = None) -> int:
     ppo_entropy_coef = float(config.get("training", {}).get("ppo_entropy_coef", 0.01))
     ppo_action_temperature = float(config.get("training", {}).get("ppo_action_temperature", 1.0))
     rl_bc_anchor_interval = int(config.get("training", {}).get("rl_bc_anchor_interval", 0))
+    latency_penalty_coefficient = float(config.get("training", {}).get("latency_penalty_coefficient", 0.01))
+    instruction_penalty = float(config.get("training", {}).get("instruction_penalty", 0.0))
     if ppo_entropy_coef < 0.0 or not np.isfinite(ppo_entropy_coef):
         raise ValueError("training.ppo_entropy_coef must be finite and non-negative")
     if ppo_action_temperature <= 0.0 or not np.isfinite(ppo_action_temperature):
         raise ValueError("training.ppo_action_temperature must be finite and positive")
     if rl_bc_anchor_interval < 0:
         raise ValueError("training.rl_bc_anchor_interval must be non-negative")
+    if latency_penalty_coefficient < 0.0 or not np.isfinite(latency_penalty_coefficient):
+        raise ValueError("training.latency_penalty_coefficient must be finite and non-negative")
+    if instruction_penalty < 0.0 or not np.isfinite(instruction_penalty):
+        raise ValueError("training.instruction_penalty must be finite and non-negative")
     checkpoint_every = float(config.get("checkpoint", {}).get("seconds", 30))
     next_checkpoint = time.monotonic() + checkpoint_every
     minimum_free_disk_bytes = _minimum_free_disk_bytes(config, mode)
@@ -880,18 +936,21 @@ def main(argv: list[str] | None = None) -> int:
                 phase = scheduled_phase
                 factory = _phase_episode_factory(generator, phase, semantic_contains)
                 predictor = None
+                latency_model_status = "not_requested"
                 if phase == "jetson_specialization":
                     from neuroseek.cost_model.model import CostModel
                     if "cost_model" not in phase_state:
                         raise RuntimeError("Jetson specialization requires an observed hardware cost model")
                     model_cost = CostModel.from_dict(phase_state["cost_model"])
-                    predictor = lambda result: model_cost.predict("graph_expand", frontier_size=1,
-                                                                  candidate_count=result.nodes_visited,
-                                                                  edge_count=result.edges_examined)
-                states, actions, old_logprob, returns, graph_metrics = _collect_real_rollouts(model, graph, generator, device, batch, cuda_session, max_cuda_expand_edges, navigator_candidate_cap, episode_factory=factory, semantic_search=semantic_search, hardware_cost_predictor=predictor, action_temperature=ppo_action_temperature)
+                    latency_model_status = _latency_model_status(model_cost)
+                    if latency_model_status == "accepted":
+                        predictor = lambda result: model_cost.predict("graph_expand", frontier_size=1,
+                                                                      candidate_count=result.nodes_visited,
+                                                                      edge_count=result.edges_examined)
+                states, actions, old_logprob, returns, graph_metrics = _collect_real_rollouts(model, graph, generator, device, batch, cuda_session, max_cuda_expand_edges, navigator_candidate_cap, episode_factory=factory, semantic_search=semantic_search, hardware_cost_predictor=predictor, action_temperature=ppo_action_temperature, latency_penalty_coefficient=latency_penalty_coefficient, instruction_penalty=instruction_penalty)
                 advantages = returns - returns.mean()
                 stats = ppo_update(model, optimizer, states, actions, old_logprob, returns, advantages, 0.2, ppo_entropy_coef, 0.5, action_temperature=ppo_action_temperature)
-                observed = {**graph_metrics, "policy_loss": stats.policy_loss, "value_loss": stats.value_loss, "entropy": stats.entropy, "kl": stats.kl, "gradient_norm": stats.grad_norm, "operator_sample": OP_NAMES[int(actions[0])]}
+                observed = {**graph_metrics, "policy_loss": stats.policy_loss, "value_loss": stats.value_loss, "entropy": stats.entropy, "kl": stats.kl, "gradient_norm": stats.grad_norm, "operator_sample": OP_NAMES[int(actions[0])], "latency_model_status": latency_model_status}
                 # PPO can otherwise reinforce a transient all-SEED failure
                 # batch until entropy vanishes.  A configurable BC anchor
                 # preserves executable proof-program priors while rollout

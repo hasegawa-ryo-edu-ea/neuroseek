@@ -1,0 +1,195 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "NEUROSEEK Jetson 低レイテンシー学習：最終評価",
+    "description": "発表用の再現可能な最終評価サマリー。保持テスト256件、同一データ・同一CUDA実行基盤で親モデルと派生モデルを比較。",
+    "generatedAt": "2026-08-13T22:39:39Z",
+    "cards": [
+      {
+        "id": "latency_mean",
+        "description": "親モデルとの同一保持テスト比較における、学習済みNEUROSEEKの平均エンドツーエンド遅延。",
+        "dataset": "headline_metrics",
+        "sourceId": "canonical_benchmark",
+        "filter": { "metric": "平均レイテンシー" },
+        "metrics": [
+          { "label": "最終モデル", "field": "derived_value", "format": "number", "unit": "ms" },
+          { "label": "親モデル比", "field": "relative_change", "format": "percent", "signed": true }
+        ]
+      },
+      {
+        "id": "latency_p95",
+        "description": "最終評価256件のp95エンドツーエンド遅延。裾野の遅延を表す。",
+        "dataset": "headline_metrics",
+        "sourceId": "canonical_benchmark",
+        "filter": { "metric": "p95レイテンシー" },
+        "metrics": [
+          { "label": "最終モデル", "field": "derived_value", "format": "number", "unit": "ms" },
+          { "label": "親モデル比", "field": "relative_change", "format": "percent", "signed": true }
+        ]
+      },
+      {
+        "id": "credits",
+        "description": "テスト1件あたりの平均計算クレジット。探索量の統一指標。",
+        "dataset": "headline_metrics",
+        "sourceId": "canonical_benchmark",
+        "filter": { "metric": "計算クレジット" },
+        "metrics": [
+          { "label": "最終モデル", "field": "derived_value", "format": "number" },
+          { "label": "親モデル比", "field": "relative_change", "format": "percent", "signed": true }
+        ]
+      },
+      {
+        "id": "accuracy",
+        "description": "独立したグラフ証明検証に合格した正答率。テスト256件を分母とする。",
+        "dataset": "headline_metrics",
+        "sourceId": "canonical_benchmark",
+        "filter": { "metric": "正答率・有効証明率" },
+        "metrics": [
+          { "label": "最終モデル", "field": "derived_value", "format": "percent" },
+          { "label": "親モデル比", "field": "absolute_change", "format": "number", "unit": "ポイント", "signed": true }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "latency_comparison",
+        "title": "保持テストのエンドツーエンド遅延",
+        "subtitle": "同一の256件。hybridは関係プログラムを与えた手書きベースラインであり、学習モデルと入力条件が異なる。",
+        "type": "bar",
+        "dataset": "latency_rows",
+        "sourceId": "canonical_benchmark",
+        "valueFormat": "number",
+        "encodings": {
+          "x": { "field": "model", "type": "nominal", "label": "方式" },
+          "y": { "field": "mean_latency_ms", "type": "quantitative", "label": "平均遅延 (ms)" },
+          "tooltip": [
+            { "field": "p95_latency_ms", "type": "quantitative", "label": "p95遅延 (ms)", "format": "number" },
+            { "field": "accuracy", "type": "quantitative", "label": "正答率", "format": "percent" },
+            { "field": "input_condition", "type": "nominal", "label": "入力条件" }
+          ]
+        }
+      },
+      {
+        "id": "family_accuracy",
+        "title": "タスク種別ごとの正答率（再評価）",
+        "subtitle": "同一の親・最終チェックポイントをテスト256件で再実行。遅延値ではなく、種別ごとの正答・探索量の内訳。",
+        "type": "bar",
+        "dataset": "family_accuracy_rows",
+        "sourceId": "structural_recheck",
+        "valueFormat": "percent",
+        "encodings": {
+          "x": { "field": "family", "type": "nominal", "label": "タスク種別" },
+          "y": { "field": "accuracy", "type": "quantitative", "label": "正答率", "format": "percent" },
+          "color": { "field": "model", "type": "nominal", "label": "モデル" },
+          "tooltip": [
+            { "field": "task_count", "type": "quantitative", "label": "件数", "format": "number" },
+            { "field": "mean_credits", "type": "quantitative", "label": "平均クレジット", "format": "number" }
+          ]
+        }
+      }
+    ],
+    "tables": [
+      {
+        "id": "benchmark_table",
+        "title": "最終ベンチマークの全方式比較",
+        "subtitle": "保持テスト256件。適用不能な方式は適用可能件数を明示。",
+        "dataset": "benchmark_rows",
+        "sourceId": "canonical_benchmark",
+        "defaultSort": { "field": "mean_latency_ms", "direction": "asc" },
+        "columns": [
+          { "field": "model", "label": "方式", "type": "text" },
+          { "field": "applicable_count", "label": "適用件数", "format": "number" },
+          { "field": "accuracy", "label": "正答率", "format": "percent" },
+          { "field": "proof_validity", "label": "有効証明率", "format": "percent" },
+          { "field": "mean_latency_ms", "label": "平均遅延 (ms)", "format": "number" },
+          { "field": "p95_latency_ms", "label": "p95遅延 (ms)", "format": "number" },
+          { "field": "mean_credits", "label": "平均クレジット", "format": "number" }
+        ]
+      },
+      {
+        "id": "family_recheck_table",
+        "title": "親モデル対最終モデル：タスク種別の再評価",
+        "subtitle": "構造的指標の再評価。原評価のエンドツーエンド遅延を再計測した表ではない。",
+        "dataset": "family_recheck_rows",
+        "sourceId": "structural_recheck",
+        "defaultSort": { "field": "task_count", "direction": "desc" },
+        "columns": [
+          { "field": "family", "label": "タスク種別", "type": "text" },
+          { "field": "task_count", "label": "件数", "format": "number" },
+          { "field": "parent_accuracy", "label": "親 正答率", "format": "percent" },
+          { "field": "derived_accuracy", "label": "最終 正答率", "format": "percent" },
+          { "field": "delta_credits", "label": "クレジット差", "format": "number", "signed": true },
+          { "field": "delta_edges", "label": "エッジ数差", "format": "number", "signed": true }
+        ]
+      }
+    ],
+    "sources": [
+      { "id": "canonical_benchmark", "label": "完了runの固定保持テスト評価", "path": "runs/latency-optimization-20260813T1255EDT/exports/benchmark_comparison.csv", "query": { "engine": "duckdb", "language": "sql", "sql": "SELECT * FROM read_csv_auto('runs/latency-optimization-20260813T1255EDT/exports/benchmark_comparison.csv') WHERE task_count = 256", "description": "完了済みの最終評価から、256件の固定保持テストに対する全方式の集計値を抽出。", "tables_used": ["runs/latency-optimization-20260813T1255EDT/exports/benchmark_comparison.csv"], "filters": ["task_count=256", "final checkpoint: final.ckpt"] } },
+      { "id": "parent_benchmark", "label": "親モデルの固定保持テスト評価", "path": "runs/presentation-stabilized-20260812T1520EDT/exports/benchmark_comparison.csv", "query": { "engine": "duckdb", "language": "sql", "sql": "SELECT * FROM read_csv_auto('runs/presentation-stabilized-20260812T1520EDT/exports/benchmark_comparison.csv') WHERE baseline = 'neuroseek_learned'", "description": "派生元チェックポイントの、同じ固定保持テストでの集計値。", "tables_used": ["runs/presentation-stabilized-20260812T1520EDT/exports/benchmark_comparison.csv"], "filters": ["task_count=256"] } },
+      { "id": "structural_recheck", "label": "親・最終チェックポイントの種別別構造再評価", "path": "runs/latency-optimization-20260813T1255EDT/analysis/task_family_recheck.json", "query": { "engine": "duckdb", "language": "sql", "sql": "SELECT family, AVG(CAST(parent_correct AS DOUBLE)) AS parent_accuracy, AVG(CAST(derived_correct AS DOUBLE)) AS derived_accuracy, AVG(delta_compute_credits) AS delta_credits, AVG(delta_edges_examined) AS delta_edges FROM read_csv_auto('runs/latency-optimization-20260813T1255EDT/analysis/task_level_recheck.csv') GROUP BY family", "description": "完了後に同一256件を各不変チェックポイントで再実行し、正答と探索コストを種別別に集計。元の遅延測定値は再利用しない。", "tables_used": ["runs/latency-optimization-20260813T1255EDT/analysis/task_level_recheck.csv", "runs/latency-optimization-20260813T1255EDT/analysis/task_family_recheck.json"], "filters": ["CUDA required", "test split count=256"] } },
+      { "id": "evaluation_design", "label": "評価設計とベースライン定義", "path": "docs/EXPERIMENT_DESIGN.md", "query": { "engine": "file", "language": "sql", "sql": "SELECT 'fixed held-out test and hand-written hybrid baseline' AS evaluation_design", "description": "固定保持テスト、手書きhybridベースライン、計測指標の定義。", "tables_used": ["docs/EXPERIMENT_DESIGN.md", "python/neuroseek/evaluation/baselines.py"] } }
+    ],
+    "blocks": [
+      { "id": "title", "type": "markdown", "body": "# NEUROSEEK Jetson 低レイテンシー学習：最終評価" },
+      { "id": "technical_summary", "type": "markdown", "sourceId": "canonical_benchmark", "body": "## 結論\n\n最終モデルは、同一の固定保持テスト256件で親モデルより **平均遅延を2.56%（31.92→31.11 ms）**、**p95遅延を7.14%（57.10→53.02 ms）**、**計算クレジットを37.59%（233.98→146.02）** 下げた。一方で正答率・有効証明率は **98.05%→97.27%（-0.78ポイント、2件）** となった。したがって、これは「精度を小さく交換して探索コストと遅延を下げた」結果である。" },
+      { "id": "headline_metrics", "type": "metric-strip", "cardIds": ["latency_mean", "latency_p95", "credits", "accuracy"] },
+      { "id": "latency_chart", "type": "chart", "chartId": "latency_comparison" },
+      { "id": "benchmark_interpretation", "type": "markdown", "sourceId": "canonical_benchmark", "body": "## 手書きhybridには未達だが、比較条件が異なる\n\n`hybrid` はこのプロジェクト内の手書きプランナで、経路問題では `QuerySpec` の関係プログラムを使用する。平均4.66 ms・99.22%という値は、学習モデルが関係列を自力選択する条件の直接的な勝敗ではない。発表では「関係プログラム既知時の強い上限ベースライン」と説明するのが正確である。" },
+      { "id": "benchmark_table_block", "type": "table", "tableId": "benchmark_table" },
+      { "id": "family_heading", "type": "markdown", "sourceId": "structural_recheck", "body": "## 精度低下は2件で、pathに集中\n\n完了後の再評価では、親で正答だった251件のうち249件を最終モデルも正答した。失敗に変化した2件はどちらも path で、distractor・intersection・semantic_hybrid・robustnessでは正答率が維持された。探索コストの主な低下は semantic_hybrid と distractor に現れ、平均クレジットの大幅減を作っている。" },
+      { "id": "family_chart_block", "type": "chart", "chartId": "family_accuracy" },
+      { "id": "family_table_block", "type": "table", "tableId": "family_recheck_table" },
+      { "id": "quality", "type": "markdown", "sourceId": "evaluation_design", "body": "## 測定の信頼性と限界\n\n- データは Wikidata5M 由来の実グラフで、訓練・検証・テストは固定seedの別ファイル。\n- 正答は独立したグラフ証明検証で判定され、学習器に正解経路は入力されない。\n- 親・最終モデルは同じテスト分割・CUDA exact backend・同一グラフ/semantic provenanceで比較されている。\n- 遅延は単一Jetson上での評価値で、反復測定・信頼区間・自然言語からの関係推定は未実施。外部SOTA比較の主張はできない。\n- 低レイテンシー用のオンラインコストモデルは検証誤差が大きく、途中で報酬から除外した。最終結果は命令数ペナルティを使う安全側の派生runの結果である。" },
+      { "id": "use_cases", "type": "markdown", "body": "## 実用化の第一候補：小型Local LLMの知識を、安全に増やす外部知識層\n\n1. **新語・固有名詞の登録**：単語、別表記、定義、出典、作成日、信頼度を追記し、矛盾や出典不足を検査する。LLM本体を再学習せず、回答時に検証済みの根拠を渡す。\n2. **Jetson上の小型Local LLM向け知識拡充**：文書取り込み→出典つき構造化知識→検索候補→証明/出典検査→LLM回答、という構成にする。NEUROSEEKは「最終回答を生成するLLM」よりも、根拠を持つ探索・検証器として使う。\n3. **発表での実証範囲**：現時点で実証済みなのは構造化グラフ探索・証明・固定テストでの効率改善である。自然言語から関係プログラムを推定し、LLM回答へ結合する部分は次の実装・評価課題である。" },
+      { "id": "next_steps", "type": "markdown", "body": "## 次に行うべき評価\n\n- 新語登録の追記・更新・削除・矛盾の回帰テストを作る。\n- 自然言語質問→関係候補の推定器を追加し、手書きhybridと同じ情報量で比較する。\n- 各モデルを複数回評価し、平均・p50・p95の信頼区間を報告する。\n- 小型Local LLMと接続し、根拠つき回答率、誤情報率、更新反映時間、メモリ使用量を測る。" }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-08-13T22:39:39Z",
+    "status": "ready",
+    "datasets": {
+      "headline_metrics": [
+        { "metric": "平均レイテンシー", "parent_value": 31.92436014444411, "derived_value": 31.105914832210146, "relative_change": -0.0256370406853983, "absolute_change": -0.818445312233964 },
+        { "metric": "p95レイテンシー", "parent_value": 57.09772674890701, "derived_value": 53.021883257315494, "relative_change": -0.0713845607809604, "absolute_change": -4.075843491591516 },
+        { "metric": "計算クレジット", "parent_value": 233.98046875, "derived_value": 146.015625, "relative_change": -0.3759526238689128, "absolute_change": -87.96484375 },
+        { "metric": "正答率・有効証明率", "parent_value": 0.98046875, "derived_value": 0.97265625, "relative_change": -0.00796812749003984, "absolute_change": -0.0078125 }
+      ],
+      "latency_rows": [
+        { "model": "親NEUROSEEK", "mean_latency_ms": 31.92436014444411, "p95_latency_ms": 57.09772674890701, "accuracy": 0.98046875, "input_condition": "学習済み方策が演算子列を選択" },
+        { "model": "最終NEUROSEEK", "mean_latency_ms": 31.105914832210146, "p95_latency_ms": 53.021883257315494, "accuracy": 0.97265625, "input_condition": "学習済み方策が演算子列を選択" },
+        { "model": "手書きhybrid", "mean_latency_ms": 4.663539261855476, "p95_latency_ms": 28.015917261654977, "accuracy": 0.9921875, "input_condition": "関係プログラム既知の手書き計画" }
+      ],
+      "benchmark_rows": [
+        { "model": "BFS", "applicable_count": 224, "accuracy": 0.5267857142857143, "proof_validity": 0.21875, "mean_latency_ms": 24.14639187398799, "p95_latency_ms": 88.33492822741385, "mean_credits": 5480.022321428572 },
+        { "model": "fixed_relation", "applicable_count": 224, "accuracy": 0.9910714285714286, "proof_validity": 0.9910714285714286, "mean_latency_ms": 5.283809232683519, "p95_latency_ms": 28.918889749911614, "mean_credits": 236.28125 },
+        { "model": "hybrid", "applicable_count": 256, "accuracy": 0.9921875, "proof_validity": 0.9921875, "mean_latency_ms": 4.663539261855476, "p95_latency_ms": 28.015917261654977, "mean_credits": 207.84375 },
+        { "model": "ANN only", "applicable_count": 256, "accuracy": 0.0, "proof_validity": 0.0, "mean_latency_ms": 1655.5779880897035, "p95_latency_ms": 1674.110775013105, "mean_credits": 4594149.0 },
+        { "model": "最終NEUROSEEK", "applicable_count": 256, "accuracy": 0.97265625, "proof_validity": 0.97265625, "mean_latency_ms": 31.105914832210146, "p95_latency_ms": 53.021883257315494, "mean_credits": 146.015625 }
+      ],
+      "family_accuracy_rows": [
+        { "family": "path", "model": "親", "accuracy": 0.9791666666666666, "task_count": 96, "mean_credits": 221.63541666666666 },
+        { "family": "path", "model": "最終", "accuracy": 0.9583333333333334, "task_count": 96, "mean_credits": 217.26041666666666 },
+        { "family": "distractor", "model": "親", "accuracy": 0.984375, "task_count": 64, "mean_credits": 126.25 },
+        { "family": "distractor", "model": "最終", "accuracy": 0.984375, "task_count": 64, "mean_credits": 102.3125 },
+        { "family": "intersection", "model": "親", "accuracy": 1.0, "task_count": 32, "mean_credits": 36.78125 },
+        { "family": "intersection", "model": "最終", "accuracy": 1.0, "task_count": 32, "mean_credits": 36.78125 },
+        { "family": "semantic_hybrid", "model": "親", "accuracy": 0.96875, "task_count": 32, "mean_credits": 828.1875 },
+        { "family": "semantic_hybrid", "model": "最終", "accuracy": 0.96875, "task_count": 32, "mean_credits": 185.46875 },
+        { "family": "robustness", "model": "親", "accuracy": 0.96875, "task_count": 32, "mean_credits": 89.46875 },
+        { "family": "robustness", "model": "最終", "accuracy": 0.96875, "task_count": 32, "mean_credits": 89.46875 }
+      ],
+      "family_recheck_rows": [
+        { "family": "path", "task_count": 96, "parent_accuracy": 0.9791666666666666, "derived_accuracy": 0.9583333333333334, "delta_credits": -4.375, "delta_edges": -137.73958333333334 },
+        { "family": "distractor", "task_count": 64, "parent_accuracy": 0.984375, "derived_accuracy": 0.984375, "delta_credits": -23.9375, "delta_edges": -541.0 },
+        { "family": "intersection", "task_count": 32, "parent_accuracy": 1.0, "derived_accuracy": 1.0, "delta_credits": 0.0, "delta_edges": 0.0 },
+        { "family": "semantic_hybrid", "task_count": 32, "parent_accuracy": 0.96875, "derived_accuracy": 0.96875, "delta_credits": -642.71875, "delta_edges": -1288.125 },
+        { "family": "robustness", "task_count": 32, "parent_accuracy": 0.96875, "derived_accuracy": 0.96875, "delta_credits": 0.0, "delta_edges": 0.0 }
+      ]
+    }
+  },
+  "sources": [],
+  "package_info": {}
+}

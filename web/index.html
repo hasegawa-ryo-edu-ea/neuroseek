@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>NEUROSEEK — Evidence Graph Search</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">NEUROSEEK <span>|</span> <small data-i18n="subtitle">LEARNED KNOWLEDGE GRAPH SEARCH</small></div>
+      <div class="top-status"><span class="live-dot"></span><span data-i18n="isolated">TRAINER ISOLATED</span><span>CPU / READ-ONLY</span><button id="language" class="text-button">EN</button></div>
+    </header>
+    <nav class="nav"><button class="nav-item active" data-panel="search" data-i18n="navSearch">01 / SEARCH</button><button class="nav-item" data-panel="policy" data-i18n="navPolicy">02 / POLICY</button><button class="nav-item" data-panel="about" data-i18n="navAbout">03 / METHOD</button><span id="graph-meta" class="nav-meta">LOCAL GRAPH / LOADING…</span></nav>
+    <main>
+      <section id="search" class="panel active">
+        <aside class="evidence-column">
+          <p class="eyebrow" data-i18n="evidence">LOCAL EVIDENCE</p>
+          <div id="entity-card" class="entity-card empty"><strong data-i18n="awaiting">AWAITING QUERY</strong><p data-i18n="awaitingDetail">Enter a word, Q-ID, or place to inspect this Jetson's local graph.</p></div>
+          <div class="section-rule"></div>
+          <p class="eyebrow" data-i18n="facts">OBSERVED FACTS</p>
+          <ol id="facts" class="facts"><li data-i18n="factsEmpty">The selected entity's real outgoing graph edges will appear here.</li></ol>
+          <div class="section-rule"></div>
+          <p class="eyebrow" data-i18n="boundary">EVIDENCE BOUNDARY</p>
+          <p class="quiet" data-i18n="boundaryDetail">Names are resolved through Wikidata. Only edges shown here are stored in the local read-only snapshot.</p>
+        </aside>
+        <section class="theater" aria-label="graph exploration">
+          <div class="theater-head"><div><p class="eyebrow" data-i18n="theater">GRAPH NAVIGATION THEATER</p><h1 id="graph-title" data-i18n="startTitle">ASK THE GRAPH</h1></div><div id="story-state" class="story-state">READY</div></div>
+          <div id="graph-path" class="graph-path" aria-label="Exploration path"></div>
+          <div id="graph-summary" class="graph-summary"><span>NODE —</span><span>LOCAL EDGES —</span><span>RELATIONS —</span><span>VIEW 1.00×</span></div>
+          <div class="graph-stage">
+            <canvas id="graph-canvas" aria-label="Interactive animated local knowledge graph"></canvas>
+            <div class="graph-controls" aria-label="Graph view controls">
+              <button id="graph-back" class="graph-control" title="Return to the previous node" data-i18n="back">BACK</button><button id="graph-prev" class="graph-control" title="Select previous local edge" data-i18n="previous">PREV</button><button id="graph-next" class="graph-control" title="Select next local edge" data-i18n="next">NEXT</button><button id="graph-focus" class="graph-control" title="Center the selected route" data-i18n="focus">FOCUS</button><button id="graph-expand" class="graph-control" title="Open the selected node as a new graph" data-i18n="expand">OPEN NODE</button><button id="run-policy-path" class="graph-control" title="Run and show learned policy proof path" data-i18n="policyPath">POLICY PATH</button><button id="graph-reset" class="graph-control" title="Show the complete local neighborhood" data-i18n="home">HOME</button>
+              <span id="selected-edge">SELECT AN EDGE</span><span id="graph-hint" data-i18n="graphHint">DRAG TO PAN · WHEEL TO ZOOM · CLICK A NODE</span>
+            </div>
+          </div>
+          <div class="canvas-legend"><span class="legend selected"></span><span data-i18n="selectedPath">selected local edge</span><span class="legend alternative"></span><span data-i18n="alternatives">other local edges</span></div>
+          <div class="command-deck"><label for="query" data-i18n="queryLabel">QUERY INPUT — natural language or Wikidata Q-ID</label><div class="input-row"><span>neuroseek&gt;</span><input id="query" autocomplete="off" placeholder="日本 / Japan / Q17"><button id="run-search" data-i18n="searchButton">EXPLORE</button></div><div id="candidate-row" class="candidates"></div><div class="filter-row"><label for="relation" data-i18n="relationLabel">RELATION FILTER</label><input id="relation" autocomplete="off" placeholder="首都 / capital / P36"><button id="apply-filter" data-i18n="filterButton">FILTER</button></div></div>
+        </section>
+        <aside class="story-column"><p class="eyebrow" data-i18n="story">THE STORY</p><div id="story" class="story"><article><b>01</b><h2 data-i18n="asked">ASKED</h2><p data-i18n="askedDetail">Your term becomes an entity candidate.</p></article><article><b>02</b><h2 data-i18n="found">FOUND</h2><p data-i18n="foundDetail">Choose a candidate available in the local snapshot.</p></article><article><b>03</b><h2 data-i18n="explored">EXPLORED</h2><p data-i18n="exploredDetail">Follow real outgoing graph edges.</p></article><article><b>04</b><h2 data-i18n="verified">BOUNDARY</h2><p data-i18n="verifiedDetail">The graph view never claims online context as local evidence.</p></article></div><p id="notice" class="notice" role="status"></p></aside>
+      </section>
+      <section id="policy" class="panel policy-panel"><div class="policy-intro"><p class="eyebrow" data-i18n="policyEyebrow">LEARNED POLICY DEMONSTRATION</p><h1 data-i18n="policyTitle">A policy chooses the graph program.</h1><p data-i18n="policyDetail">This runs the immutable presentation checkpoint against a held-out graph task. The reference answer is not passed to the policy.</p><button id="run-policy" data-i18n="runPolicy">RUN HELD-OUT TASK</button></div><div id="policy-result" class="policy-result"><p data-i18n="policyReady">Ready. This action is CPU-only and does not interfere with training.</p></div></section>
+      <section id="about" class="panel method"><p class="eyebrow" data-i18n="methodEyebrow">WHY NEUROSEEK</p><h1 data-i18n="methodTitle">Learn → Explore → Prove</h1><div class="method-grid"><article><b>01</b><h2 data-i18n="learn">LEARN</h2><p data-i18n="learnDetail">A learned policy selects graph operations.</p></article><article><b>02</b><h2 data-i18n="explore">EXPLORE</h2><p data-i18n="exploreDetail">The program traverses the memory-mapped local graph.</p></article><article><b>03</b><h2 data-i18n="prove">PROVE</h2><p data-i18n="proveDetail">A separate validator accepts reconstructable evidence only.</p></article></div></section>
+    </main>
+    <footer><span data-i18n="footer">STATUS: READY</span><span>NEUROSEEK / JETSON ORIN NANO</span><span>CUDA: OFF FOR VIEWER</span></footer>
+    <script src="/app.js"></script>
+  </body>
+</html>

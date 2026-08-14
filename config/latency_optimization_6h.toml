@@ -1,0 +1,81 @@
+[run]
+mode = "full"
+seed = 20260810
+# Parent final checkpoint is at 100352 seconds.  This derived run performs
+# 20400 seconds of latency-focused specialization, then fixed held-out eval.
+budget_seconds = 121952
+semantic_preparation_max_seconds = 21600
+
+[training]
+batch_size = 16
+lr = 0.00015
+max_cuda_expand_edges = 262144
+navigator_candidate_cap = 256
+ppo_entropy_coef = 0.06
+ppo_action_temperature = 1.25
+rl_bc_anchor_interval = 1
+# Measured CUDA expansion surrogate plus a small per-VM-instruction cost.
+# Valid proof reward remains substantially larger than the maximum intended
+# shortening pressure for ordinary 2-3 hop programs.
+latency_penalty_coefficient = 0.02
+instruction_penalty = 0.012
+
+[checkpoint]
+seconds = 300
+retain_periodic = 24
+
+[storage]
+minimum_free_gib = 24
+
+[hardware]
+checkpoint_window = 256
+sample_interval_seconds = 1.0
+
+[telemetry]
+enabled = true
+tegrastats_interval_seconds = 10
+warning_temperature_c = 80.0
+critical_temperature_c = 85.0
+critical_action = "checkpoint_stop"
+
+[[phase]]
+name = "cuda_search_microbenchmarks"
+seconds = 900
+
+[[phase]]
+name = "hardware_cost_model"
+seconds = 1800
+
+[[phase]]
+name = "behavior_cloning"
+seconds = 8000
+
+[[phase]]
+name = "rl_2_3_hop"
+seconds = 16431
+
+[[phase]]
+name = "rl_multihop_distractor"
+seconds = 22042
+
+[[phase]]
+name = "rl_intersection"
+seconds = 16468
+
+[[phase]]
+name = "rl_semantic_hybrid"
+seconds = 12245
+
+[[phase]]
+name = "rl_robustness"
+seconds = 10121
+
+# Parent elapsed time lands at the beginning of the final 20400 seconds of
+# this phase, which supplies real 2-3 hop tasks and the observed cost model.
+[[phase]]
+name = "jetson_specialization"
+seconds = 32745
+
+[[phase]]
+name = "deterministic_final_evaluation"
+seconds = 1200

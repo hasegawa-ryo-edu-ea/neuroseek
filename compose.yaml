@@ -75,6 +75,25 @@ services:
     # trainer lifecycle to an SSH terminal.
     command: ["bash", "-lc", "exec neuroseek-tui --attach-current"]
 
+  search:
+    # Presentation/query service: a short-lived, read-only CUDA worker.  It
+    # requires the same checked GPU path as training, but never writes a run,
+    # checkpoint, telemetry event, or graph artifact.
+    image: neuroseek:jetson-r36.3-l4tml-r36.2
+    profiles: ["search"]
+    runtime: nvidia
+    network_mode: host
+    ipc: host
+    init: true
+    working_dir: /workspace
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - .:/workspace:ro
+    command: ["bash", "-lc", "exec python3 scripts/live_query.py"]
+
 volumes:
   cargo-cache:
   rust-target:

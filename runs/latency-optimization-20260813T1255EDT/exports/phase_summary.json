@@ -1,0 +1,79 @@
+{
+  "final_evaluation": {
+    "ann_only": {
+      "answer_accuracy": 0.0,
+      "applicable_count": 256,
+      "baseline": "ann_only",
+      "mean_ann_calls": 1.0,
+      "mean_compute_credits": 4594149.0,
+      "mean_edges_examined": 0.0,
+      "mean_latency_ms": 1655.5779880897035,
+      "mean_nodes_visited": 4594149.0,
+      "mean_search_steps": 0.0,
+      "p95_latency_ms": 1674.110775013105,
+      "results": [],
+      "task_count": 256,
+      "valid_proof_rate": 0.0
+    },
+    "bfs": {
+      "answer_accuracy": 0.5267857142857143,
+      "applicable_count": 224,
+      "baseline": "bfs",
+      "mean_ann_calls": 0.0,
+      "mean_compute_credits": 5480.022321428572,
+      "mean_edges_examined": 11351.20982142857,
+      "mean_latency_ms": 24.14639187398799,
+      "mean_nodes_visited": 5477.169642857143,
+      "mean_search_steps": 2.8526785714285716,
+      "p95_latency_ms": 88.33492822741385,
+      "results": [],
+      "task_count": 256,
+      "valid_proof_rate": 0.21875
+    },
+    "fixed_relation": {
+      "answer_accuracy": 0.9910714285714286,
+      "applicable_count": 224,
+      "baseline": "fixed_relation",
+      "mean_ann_calls": 0.0,
+      "mean_compute_credits": 236.28125,
+      "mean_edges_examined": 2915.870535714286,
+      "mean_latency_ms": 5.283809232683519,
+      "mean_nodes_visited": 232.125,
+      "mean_search_steps": 4.169642857142857,
+      "p95_latency_ms": 28.918889749911614,
+      "results": [],
+      "task_count": 256,
+      "valid_proof_rate": 0.9910714285714286
+    },
+    "hybrid": {
+      "answer_accuracy": 0.9921875,
+      "applicable_count": 256,
+      "baseline": "hybrid",
+      "mean_ann_calls": 0.0,
+      "mean_compute_credits": 207.84375,
+      "mean_edges_examined": 2553.296875,
+      "mean_latency_ms": 4.663539261855476,
+      "mean_nodes_visited": 203.95703125,
+      "mean_search_steps": 3.8984375,
+      "p95_latency_ms": 28.015917261654977,
+      "results": [],
+      "task_count": 256,
+      "valid_proof_rate": 0.9921875
+    },
+    "neuroseek_learned": {
+      "answer_accuracy": 0.97265625,
+      "applicable_count": 256,
+      "baseline": "neuroseek_learned",
+      "mean_ann_calls": 0.0,
+      "mean_compute_credits": 146.015625,
+      "mean_edges_examined": 1816.6640625,
+      "mean_latency_ms": 31.105914832210146,
+      "mean_nodes_visited": 113.234375,
+      "mean_search_steps": 32.78125,
+      "p95_latency_ms": 53.021883257315494,
+      "results": [],
+      "task_count": 256,
+      "valid_proof_rate": 0.97265625
+    }
+  }
+}

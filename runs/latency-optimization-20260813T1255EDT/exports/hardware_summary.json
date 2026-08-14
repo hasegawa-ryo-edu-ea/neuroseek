@@ -1,0 +1,22 @@
+{
+  "provenance": {
+    "config_sha256": "658104380fd26158f44586e6bea8c0fe6dc891db8c9fa0eb34c262a5cb0baaa8",
+    "graph_manifest_sha256": "1b26a375f7c16d01f75a2d32e9a5d8acd56a62cd5f6ff7c4e9e48e80b1485c76",
+    "semantic_manifest_sha256": "996bd890890a28e7fd7d03b057e9536809bb5621f3fcda4862df14a9d120c9ec",
+    "task_split_manifest_sha256": "b17b3fc9b52d01efe6c4d677f6f4ae2a27d6d7c8dc996c10753cfb98bf17e0ce"
+  },
+  "telemetry": {
+    "ram_total_gib": 7.441749572753906,
+    "ram_used_gib": 4.551006317138672,
+    "telemetry_source": "sysfs",
+    "temperature_c": 51.031,
+    "thermal_sensors_c": {
+      "cpu-thermal": 50.718,
+      "gpu-thermal": 51.031,
+      "soc0-thermal": 48.906,
+      "soc1-thermal": 49.468,
+      "soc2-thermal": 50.281,
+      "tj-thermal": 50.843
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "run_id": "presentation-stabilized-20260812T1520EDT",
+  "mode": "full",
+  "created_at": 1786562493.0926192,
+  "device": "cuda",
+  "torch": "2.1.0",
+  "dataset_manifest": {
+    "created_utc": "2026-08-11T02:11:29Z",
+    "entity_count": 4594149,
+    "files": {
+      "entities.tsv": {
+        "bytes": 119120698,
+        "sha256": "d34b45c4c9ae763ec18f6371a8b17d0b3e92456bf3f82206671bea4ad907c12e"
+      },
+      "forward_neighbors.u32": {
+        "bytes": 82457116,
+        "sha256": "79f5a55cbdf7c308083746a00414059b9431cf8cd014fee4eadb310d93804752"
+      },
+      "forward_offsets.u64": {
+        "bytes": 36753200,
+        "sha256": "9cb7af368c94eae088f097ab51019ca7fd6fbc77bc8a21d4418bdf6995560a06"
+      },
+      "forward_relations.u16": {
+        "bytes": 41228558,
+        "sha256": "a3b676ed99e81658856a254416fff0541847eb5573b8c85ba459eb9d49741209"
+      },
+      "relations.tsv": {
+        "bytes": 12262,
+        "sha256": "c5dae06e517d81c0b823ac28b7d9a6b92ec4aee88f58d9ae8ccbc4ca428e154b"
+      },
+      "reverse_neighbors.u32": {
+        "bytes": 82457116,
+        "sha256": "a08f12079de302af2c67f62cb66b7ed62e6364f9f541e9463700f26cea96a357"
+      },
+      "reverse_offsets.u64": {
+        "bytes": 36753200,
+        "sha256": "4003f59087e4fdab2522db7883b7fb002528a186d19e768dbe161dfc8c1193f3"
+      },
+      "reverse_relations.u16": {
+        "bytes": 41228558,
+        "sha256": "f1df4459ffa6c9ccf984b09bd95d96a373572d402118769dad8aa3c1ac4d583d"
+      }
+    },
+    "format_version": 1,
+    "heldout_inputs": [
+      {
+        "bytes": 105310,
+        "path": "/home/nvidia/jetson-inference/Final_Project/data/raw/wikidata5m/wikidata5m_transductive_valid.txt",
+        "sha256": "e6c468b17be80ae590cdadec2b1dc28d203eb5041a890586b2800d4e9a8bec6b"
+      },
+      {
+        "bytes": 104851,
+        "path": "/home/nvidia/jetson-inference/Final_Project/data/raw/wikidata5m/wikidata5m_transductive_test.txt",
+        "sha256": "69ee37d99f609a085bf13b1b29ce21bc2d8fd04a93787d0f1855dd4a53f13150"
+      }
+    ],
+    "id_types": {
+      "node": "uint32",
+      "relation": "uint16"
+    },
+    "input": [
+      {
+        "bytes": 420329153,
+        "path": "/home/nvidia/jetson-inference/Final_Project/data/raw/wikidata5m/wikidata5m_transductive_train.txt",
+        "sha256": "b3d312fbb168c1c45944f38742af19507d157c0ad65b87059b27ff793e87fab2"
+      }
+    ],
+    "original_triples": 20614279,
+    "relation_count": 822,
+    "train_only": true,
+    "traversal_edges": 41228558
+  },
+  "provenance": {
+    "config_sha256": "ffa2caa863a79f33c0957e6056c2dfeb94e436db7940131791b3c9f517034179",
+    "graph_manifest_sha256": "1b26a375f7c16d01f75a2d32e9a5d8acd56a62cd5f6ff7c4e9e48e80b1485c76",
+    "task_split_manifest_sha256": "b17b3fc9b52d01efe6c4d677f6f4ae2a27d6d7c8dc996c10753cfb98bf17e0ce",
+    "semantic_manifest_sha256": "996bd890890a28e7fd7d03b057e9536809bb5621f3fcda4862df14a9d120c9ec"
+  },
+  "derived_from": {
+    "checkpoint": "/workspace/runs/presentation-quality-20260812T0240EDT/checkpoints/periodic-001540960.ckpt",
+    "global_step": 1540960,
+    "elapsed_seconds": 48936.357112829,
+    "parent_provenance": {
+      "config_sha256": "d8da912f5c5dfcc3b7e276fcc42dcbf9b6ff4dde45010caf36796947f7dbe6d3",
+      "graph_manifest_sha256": "1b26a375f7c16d01f75a2d32e9a5d8acd56a62cd5f6ff7c4e9e48e80b1485c76",
+      "task_split_manifest_sha256": "b17b3fc9b52d01efe6c4d677f6f4ae2a27d6d7c8dc996c10753cfb98bf17e0ce",
+      "semantic_manifest_sha256": "996bd890890a28e7fd7d03b057e9536809bb5621f3fcda4862df14a9d120c9ec",
+      "mode": "full",
+      "run_id": "presentation-quality-20260812T0240EDT"
+    }
+  },
+  "completed_at": 1786614349.3623247
+}

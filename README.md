@@ -1,240 +1,128 @@
 # NEUROSEEK
 
-**A proof-first, GPU-native knowledge-search research system for the Jetson Orin Nano.**
+**A proof-first, GPU-native knowledge-graph navigator for the Jetson Orin Nano.**
 
-NEUROSEEK explores a simple question: can a compact learned policy decide how
-to traverse a very large knowledge graph on an edge GPU, while still returning
-evidence that can be independently checked?
-
-It combines a memory-mapped [Wikidata5M](https://deepgraphlearning.github.io/project/wikidata5m)
-graph, a Rust virtual machine and proof validator, custom CUDA primitives, a
-semantic entity-vector lane, and a PyTorch policy trained with behavior cloning
-and PPO. The system is designed as a reproducible research artifact and an
-operator-friendly Jetson workload—not as a hosted search API.
-
-> **Current status — research prototype.** CUDA/data gates and the full
-> semantic artifact have been validated, but NEUROSEEK does **not** yet claim
-> a completed end-to-end 50-hour scientific result or production-grade query
-> latency. A latency-specialized model is currently being trained. This README
-> intentionally separates its planned method from results that have not yet
-> been measured.
+NEUROSEEK is the completed low-latency culmination of this project. Its learned controller searches a large graph on an edge GPU, and an answer is accepted only with graph evidence that an independent validator verifies. It is a reproducible research system and local evidence-bounded search demonstrator—not a hosted API or general chatbot.
 
 日本語版: [README.ja.md](README.ja.md)
 
-## Why NEUROSEEK?
+## Why this project exists
 
-Large knowledge-graph systems usually force a trade-off: graph traversal gives
-auditable answers but can be expensive, while semantic retrieval is fast to
-prototype but may not prove that a result is true. NEUROSEEK keeps both lanes:
+Knowledge systems often choose between fast semantic retrieval that is hard to audit and symbolic graph traversal that is inspectable but costly. NEUROSEEK makes that trade-off explicit on an 8 GB-class edge device: learning and CUDA decide where to search; immutable graph evidence establishes the final claim.
 
-- **Symbolic lane:** compact CSR graph storage and a constrained NEURO-ISA
-  program are executed and independently proof-checked.
-- **Semantic lane:** aligned entity embeddings propose candidate jumps; they
-  never replace graph verification.
-- **Learned controller:** a small query-conditioned policy learns which
-  operations to use under a bounded execution budget.
+The goal is more demanding than returning a plausible entity. A result must include a replayable, independently validated path, and reveal its cost in latency, instructions, and graph work.
 
-The aim is not merely to retrieve an entity. It is to produce an answer with a
-valid path through immutable graph evidence, while making the hardware costs
-of that search visible and optimizable on an 8 GB-class edge device.
+## Final low-latency result
 
-## What is already strong
+The final model and its parent were evaluated on the same fixed 256-task held-out test set, graph, semantic provenance, and CUDA exact backend.
+
+| Metric | Parent | Final model | Change |
+| --- | ---: | ---: | ---: |
+| Mean end-to-end latency | 31.92 ms | **31.11 ms** | **-2.56%** |
+| p95 end-to-end latency | 57.10 ms | **53.02 ms** | **-7.14%** |
+| Mean compute credits/task | 233.98 | **146.02** | **-37.59%** |
+| Answer accuracy / valid-proof rate | **98.05%** | 97.27% | -0.78 points (2 tasks) |
+
+This is an intentional, measured efficiency trade-off—not a claim that every quality dimension improved. Both regressions were in the path family; accuracy was retained for distractor, intersection, semantic-hybrid, and robustness. The 4.66 ms hand-written hybrid baseline is not directly comparable: it receives the relation program, while the learned model chooses its own operator sequence.
+
+Raw result: [benchmark comparison](runs/latency-optimization-20260813T1255EDT/exports/benchmark_comparison.csv). See the [final evaluation report](reports/latency-final-presentation/report.html) for the comparison and limits.
+
+## What makes it strong
 
 | Capability | Why it matters |
 | --- | --- |
-| Proof validation in Rust | A returned answer receives credit only after an independent validator accepts its graph evidence. |
-| GPU compatibility is a release gate | CUDA visibility alone is insufficient; a custom CUDA parity test must agree with the host reference before training starts. |
-| Full semantic coverage | `semantic_full` is checked for hashes, dimensions, ordering, and coverage of every compact graph entity ID. Partial embeddings are rejected in full mode. |
-| Reproducible data path | Wikidata5M is compiled into immutable, memory-mapped CSR arrays; task splits, configuration, and run manifests are persisted. |
-| Failure-aware long runs | Atomic checkpoints, resume validation, free-space protection, and critical-temperature checkpoint-and-stop behavior protect a long Jetson run. |
-| SSH-safe operation | Training is detached from the terminal. Reattaching the TUI cannot launch a duplicate trainer or contend for GPU memory. |
+| Independent proof validation | Rust accepts a result only when the returned graph evidence is valid; semantic similarity is never proof. |
+| Evidence-bounded hybrid search | Embeddings and CUDA search propose candidates; the symbolic lane establishes why the answer is valid. |
+| Edge-first cost-aware control | A compact query-conditioned policy learns bounded NEURO-ISA programs and was specialized to reduce instructions and device cost. |
+| GPU correctness gate | Training requires custom CUDA/host parity, not merely CUDA visibility. |
+| Reproducible graph path | Wikidata5M becomes immutable memory-mapped CSR; splits, hashes, config, checkpoints, and append-only metrics persist. |
+| Long-run and SSH safety | Atomic recovery, a 24 GiB reserve, thermal checkpoint-and-stop, and a read-only reconnect monitor protect the run. |
 
-## Architecture at a glance
+## Architecture
 
-```text
-Wikidata5M triples
-        │ preprocess
-        ▼
-Memory-mapped CSR graph ──────► Rust NEURO-ISA VM ──────► proof validator
-        │                               ▲                        │
-        │                               │                        ▼
-        │                         learned policy              valid answer
-        │                               ▲
-        ▼                               │
-Aligned entity embeddings ──► CUDA score/top-k candidates
-```
+~~~
+Wikidata5M triples → immutable preprocessing → memory-mapped forward/reverse CSR graph
+                                             ↑
+        embeddings → CUDA exact score/top-k → candidates
+                                             ↑
+learned query-conditioned policy → Rust NEURO-ISA VM → Rust proof validator
+                                                        ↓
+                                            accepted answer + evidence
+~~~
 
-The semantic lane can suggest where to look. The symbolic lane is responsible
-for establishing why an answer is valid.
+Rust owns VM semantics, accounting, and proof validation. CUDA supplies bulk primitives with host-parity tests. Python owns the navigator, PPO/behavior-cloning training, curriculum, checkpointing, telemetry, and evaluation. Semantic search can suggest a jump, but cannot bypass validation.
 
-## Latency: current reality and the work in progress
+## Reproduce on your Jetson
 
-Latency is currently a first-class limitation, not a solved claim. The
-production semantic backend uses exact CUDA dot-product scoring followed by a
-deterministic host-side top-k merge. In addition, policy and VM steps can incur
-repeated control-path overhead. These are deliberate correctness-first choices,
-but they are not the final low-latency architecture.
+The validated target is Jetson Orin Nano with Jetson Linux R36.3 / JetPack 6 generation, Docker Compose, and NVIDIA Container Runtime. Reserve about 24 GiB before a full run. The build pins a compatible NVIDIA L4T ML image; do not substitute an x86 CUDA image or accept CPU fallback.
 
-### In-progress latency-specialized model
+Large data and model assets are a GitHub Release. Authenticate with GitHub CLI first for the private repository.
 
-At the time this README was written, a derived Jetson-specialization run is in
-progress with an expected completion window of roughly six hours. It starts
-from a parent checkpoint and trains with:
-
-- a cost model fitted from observed CUDA search probes;
-- a configurable penalty for predicted query latency; and
-- a small penalty for NEURO-ISA instruction count, encouraging shorter
-  policy/VM interaction traces without rewarding invalid proofs.
-
-The improvement must be reported against fixed held-out tasks and must retain
-proof validity. Until that evaluation completes, no latency improvement number
-or percentage should be inferred from this repository.
-
-### Results to add after the run
-
-Fill this table only with measurements from the completed fixed held-out
-evaluation, including device state and configuration hash.
-
-| Metric | Baseline model | Latency-specialized model | Status |
-| --- | ---: | ---: | --- |
-| Median end-to-end latency | pending | pending | evaluation pending |
-| p95 end-to-end latency | pending | pending | evaluation pending |
-| Mean NEURO-ISA instructions/query | pending | pending | evaluation pending |
-| Proof validity | pending | pending | evaluation pending |
-| Answer accuracy | pending | pending | evaluation pending |
-| CUDA/host cost breakdown | pending | pending | evaluation pending |
-
-The implementation and its configuration are deliberately isolated from the
-baseline, so the eventual README update can name the parent checkpoint,
-evaluation manifest, and exact measured deltas rather than presenting an
-unverifiable benchmark.
-
-## Quick start
-
-### 1. Prerequisites
-
-The validated target environment is a **Jetson Orin Nano** running Jetson Linux
-R36.3 / JetPack 6 generation with NVIDIA Container Runtime, Docker Compose,
-and approximately **24 GiB free disk space** before a full run. The container
-image is pinned to a compatible NVIDIA L4T ML CUDA 12.2-generation digest.
-
-You also need the release assets. They are not ordinary Git files because the
-corpus and model exceed GitHub's 100 MB file limit.
-
-```bash
+~~~
 git clone https://github.com/hasegawa-ryo-edu-ea/neuroseek.git
 cd neuroseek
-
-# For this private repository, authenticate with GitHub CLI first.
 gh release download initial-data-and-models \
   --repo hasegawa-ryo-edu-ea/neuroseek \
   --pattern 'neuroseek-*.tar.zst'
-
 sha256sum -c data/RELEASE_SHA256SUMS
 tar --zstd -xf neuroseek-wikidata5m-raw.tar.zst
 tar --zstd -xf neuroseek-processed-data-and-models.tar.zst
-```
-
-This restores `data/raw/wikidata5m/` and `data/processed/`, including the
-full `semantic_full` embedding artifact. Do not place them under `cache/`.
-
-### 2. Check the host before consuming GPU time
-
-```bash
 ./up.sh --doctor
-```
+PYTHONPATH=python pytest -q
+cargo test --workspace -q
+~~~
 
-The doctor command checks the Docker/NVIDIA runtime prerequisites and refuses
-a configuration that would expose an unexpected network listener.
+The release restores data/raw/wikidata5m/ and data/processed/, including fully aligned semantic_full; do not place them under cache/. On the validated target, the checks passed with 54 Python and 12 Rust tests. They establish implementation and CUDA/data-contract readiness, not reproduction of the final benchmark.
 
-### 3. Choose an execution mode
+| Command | Purpose |
+| --- | --- |
+| ./up.sh --smoke | Bounded synthetic functional/CUDA-path check; not a scientific result. |
+| ./up.sh --trial | Bounded deterministic real-data subgraph run; explicitly permits partial semantic coverage. |
+| ./up.sh | Full detached training or safe resume with the complete semantic artifact. |
+| ./up.sh --status / ./logs.sh | Inspect the detached trainer or follow logs. |
+| ./down.sh | Gracefully stop while preserving data and checkpoints. |
 
-| Command | Purpose | Bounded? |
-| --- | --- | --- |
-| `./up.sh --smoke` | Synthetic functional/CUDA-path check. Not scientific evaluation. | Yes |
-| `./up.sh --trial` | Deterministic real-data subgraph trial; permits the explicitly partial semantic artifact. | Yes |
-| `./up.sh` | Full detached production training/resume using the complete semantic artifact. | 50-hour training budget; setup is separately capped |
-| `./up.sh --status` | Inspect the detached trainer. | Yes |
-| `./logs.sh` | Follow the current run's logs. | Yes |
-| `./down.sh` | Gracefully stop training while preserving data and checkpoints. | Yes |
+The first full invocation can prepare semantic vectors in the foreground. Do not disconnect SSH until NEUROSEEK trainer detached: appears (or the monitor opens). Afterwards, reconnect with ./up.sh for the read-only monitor, or use ./up.sh --no-tui. Interrupted semantic preparation resumes from its atomic checkpoint.
 
-For a full run, the first semantic preparation may run in the foreground before
-the trainer detaches. Wait for `NEUROSEEK trainer detached:` (or for the TUI)
-before disconnecting SSH. If preparation is interrupted, run `./up.sh` again;
-the atomic semantic checkpoint will resume safely.
+## Train or specialize a model
 
-### 4. Reattach safely
+Use config/full.toml for the standard 50-hour curriculum. It records phase budgets, caps semantic preparation separately, checkpoints every five minutes, and saves progress then stops at critical temperature.
 
-Once the trainer is detached, it continues independently of your SSH session.
-Reconnect and run:
+For a latency-oriented derivative, copy config/latency_optimization_6h.toml, retain the parent's graph/split/semantic artifacts, and record every changed setting. The supplied configuration starts from a parent checkpoint and applies small latency and instruction penalties while keeping valid-proof reward dominant.
 
-```bash
-cd /path/to/neuroseek
-./up.sh
-```
+~~~
+mkdir -p runs/my-specialization
+NEUROSEEK_CONFIG=/workspace/config/latency_optimization_6h.toml \
+NEUROSEEK_RUN_DIR=/workspace/runs/my-specialization \
+NEUROSEEK_RESUME= \
+NEUROSEEK_PARENT_CHECKPOINT=/workspace/runs/<parent-run>/checkpoints/final.ckpt \
+docker compose -f compose.yaml up -d trainer
+~~~
 
-When a healthy trainer already exists, this opens a read-only terminal
-dashboard instead of starting another training job. For a non-interactive
-attach path, use `./up.sh --no-tui`.
+Replace docker compose with sudo -n docker compose if required. Never resume into the parent run, mix semantic_bounded into a full comparison, or report a changed configuration without its manifest and fixed held-out evaluation. Keep train/validation/test seeds separate and evaluate accuracy, proof validity, instructions, graph work, latency, and device conditions together. See [Training](docs/TRAINING.md), [experiment design](docs/EXPERIMENT_DESIGN.md), and [reproducibility](docs/REPRODUCIBILITY.md).
 
-## How to interpret a run
+## Use the final model
 
-NEUROSEEK records append-only metrics and durable manifests under `runs/`.
-The early `cuda_search_microbenchmarks` phase is a hardware-cost collection
-stage: policy reward and proof metrics may legitimately be zero or `n/a`
-there. Meaningful policy metrics begin after the cost-model and behavior-
-cloning phases.
+The presentation/query tool is CUDA-required and read-only. It runs the policy and persistent CSR expansion on the GPU, refuses CPU fallback, and never writes data, checkpoints, or telemetry. Schedule it outside active training because it shares the Jetson GPU.
 
-For a research result, report at least:
+~~~
+./search
+./search tui ja
+./search web en
+~~~
 
-1. the run/configuration manifest and data/semantic hashes;
-2. fixed held-out answer accuracy and proof validity;
-3. examined nodes/edges, instruction count, ANN calls, and latency; and
-4. device power/thermal conditions and any checkpoint-stop event.
+The Web UI is at http://127.0.0.1:8787; use ja or en. In the terminal console, r runs an immutable validation task, n selects the next task, 1–5 switch pages, l switches language, and :run 3, :lang ja, and :quit are available. Model and Path show the policy's actual program and candidates; Proof independently validates returned evidence. The reference answer is not an input to the policy.
 
-Do not present a smoke test, successful container startup, or a partial
-semantic artifact as a full Wikidata5M result.
+Words resolves terms such as Japan or 日本 and shows only locally explorable graph facts. Public Wikidata name resolution is labeled external context, never local evidence; Q/P IDs work offline. For live training display, use ./watch (English) or ./watch ja (Japanese); it only tails metrics.jsonl.
 
-## Repository map
+## Scope and limits
 
-```text
-config/     Run budgets, curriculum, hardware safety, and experiment settings
-cuda/       Custom SM87 CUDA primitives and host-parity test
-data/       Release-asset instructions and checksums
-docs/       Architecture, graph format, semantic contract, and runbooks
-python/     Policy, training loop, graph/task code, telemetry, evaluation
-rust/       NEURO-ISA VM, proof validator, CLI, and read-only TUI
-scripts/    Data preparation, semantic build, verification, and preflight
-tests/      Python correctness and recovery tests
-```
-
-## Validation performed on the target setup
-
-The source tree has passed the following project checks on the validated Jetson
-setup:
-
-```bash
-./up.sh --doctor
-PYTHONPATH=python pytest -q        # 54 tests
-cargo test --workspace -q          # 12 tests
-```
-
-These checks establish source, data-contract, and CUDA-parity readiness. They
-do not substitute for an accepted long-duration scientific run or the pending
-latency evaluation.
+These latency values are a single-Jetson fixed-test evaluation. They do not provide repeated-run confidence intervals, external-SOTA comparison, or natural-language-to-relation-program evaluation. The online latency cost model was removed from the final reward after its validation error proved too large; the final result uses the safer instruction penalty. Natural-language interpretation and local-LLM answer generation are next integration steps, not claims made here.
 
 ## Further reading
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Graph format](docs/GRAPH_FORMAT.md)
 - [Semantic lane contract](docs/SEMANTIC.md)
-- [Training and recovery](docs/TRAINING.md)
-- [Experiment discipline](docs/EXPERIMENT_DESIGN.md)
 - [Operator runbook](docs/RUNBOOK.md)
-- [Japanese README](README.ja.md)
-
-## License and external data
-
-See [THIRD_PARTY.md](THIRD_PARTY.md) for the components and dataset provenance
-used by this research project. Verify the applicable Wikidata5M terms before
-redistributing the release assets.
+- [Third-party data and licenses](THIRD_PARTY.md)
