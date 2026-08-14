@@ -136,6 +136,8 @@ CUDAバックエンドで評価しました。
 との比較、自然言語QAの評価は含みません。[生データ]
 (runs/latency-optimization-20260813T1255EDT/exports/benchmark_comparison.csv)と
 [評価レポート](reports/latency-final-presentation/report.html)を参照してください。
+提出用の測定値、provenance、環境スナップショット、テスト結果、全アーティファクトへの
+リンクは [最終測定記録](docs/FINAL_RESULTS.md) にまとめています。
 
 ## 詳細資料
 
@@ -146,4 +148,5 @@ CUDAバックエンドで評価しました。
 - [再現性](docs/REPRODUCIBILITY.md)
 - [グラフ形式](docs/GRAPH_FORMAT.md)
 - [Semantic lane契約](docs/SEMANTIC.md)
+- [最終測定記録](docs/FINAL_RESULTS.md)
 - [第三者データとライセンス](THIRD_PARTY.md)

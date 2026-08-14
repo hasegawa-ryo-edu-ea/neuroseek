@@ -146,6 +146,8 @@ test set; they are not confidence intervals, an external-SOTA comparison, or
 a natural-language question-answering evaluation. See the [raw comparison]
 (runs/latency-optimization-20260813T1255EDT/exports/benchmark_comparison.csv)
 and [evaluation report](reports/latency-final-presentation/report.html).
+The complete submission measurement record, provenance, environment snapshot,
+test status, and artifact index are in [Final measurement record](docs/FINAL_RESULTS.md).
 
 ## Documentation
 
@@ -156,4 +158,5 @@ and [evaluation report](reports/latency-final-presentation/report.html).
 - [Reproducibility](docs/REPRODUCIBILITY.md)
 - [Graph format](docs/GRAPH_FORMAT.md)
 - [Semantic lane contract](docs/SEMANTIC.md)
+- [Final measurement record](docs/FINAL_RESULTS.md)
 - [Third-party data and licenses](THIRD_PARTY.md)
