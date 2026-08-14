@@ -2,9 +2,10 @@
 """NEUROSEEK's dependency-free, stdio Model Context Protocol server.
 
 The server itself uses only the Python standard library.  Each knowledge tool
-starts the existing ``search`` Compose profile, which is CPU-only and mounts
+starts the existing ``search`` Compose profile, which requires CUDA and mounts
 this repository read-only.  Consequently an MCP client cannot change graph
-evidence, checkpoints, telemetry, or the concurrent GPU trainer.
+evidence, checkpoints, or telemetry.  A concurrent trainer may contend for
+the same GPU, so query calls should be scheduled outside active training.
 """
 from __future__ import annotations
 
@@ -135,7 +136,7 @@ def call_tool(name: str, raw_arguments: object) -> dict[str, object]:
             "knowledge_source": "immutable local Wikidata5M CSR graph",
             "model": "immutable learned graph-navigation policy",
             "evidence_rule": "Use direct_local_csr_edge facts as graph evidence. Treat learned-policy answers as usable only when valid_proof is true.",
-            "isolation": "Every tool call is CPU-only, read-only, bounded to 120 seconds, and cannot modify a trainer, checkpoint, graph, or telemetry.",
+            "isolation": "Every tool call requires CUDA, is read-only, bounded to 120 seconds, and cannot modify a trainer, checkpoint, graph, or telemetry. Schedule it outside active training to avoid GPU contention.",
             "limitations": "The graph is a finite local snapshot. No public-Wikidata lookup or generative answer synthesis is performed by this MCP server.",
         })
     if name == "neuroseek_get_local_facts":

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One real, CPU-only NEUROSEEK policy search for the presentation console.
+"""One real CUDA NEUROSEEK policy search for the presentation console.
 
 This is intentionally a query *worker*, not a service.  It loads a named,
 immutable checkpoint and graph in read-only mode, executes the learned policy
@@ -14,10 +14,6 @@ import os
 import time
 from pathlib import Path
 
-# The invocation container has CUDA explicitly hidden.  Importing Torch after
-# this declaration prevents a video/demo query from joining the trainer's GPU.
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
-
 import torch
 
 from neuroseek.data.graph import GraphMmap
@@ -25,6 +21,7 @@ from neuroseek.data.tasks import load_task_jsonl
 from neuroseek.models.policy import NavigatorPolicy, OP_NAMES
 from neuroseek.search.environment import GraphSearchEnv
 from neuroseek.training.checkpoint import load_checkpoint
+from neuroseek.cuda_backend import CudaExactBackend
 
 
 DEFAULT_CHECKPOINT = Path("runs/presentation-stabilized-20260812T1520EDT/checkpoints/latest.ckpt")
@@ -58,9 +55,9 @@ def main() -> int:
     if not args.tasks.is_file():
         raise FileNotFoundError(f"task artifact is absent: {args.tasks}")
 
-    # CPU is an intentional coexistence boundary, not a fallback.  The worker
-    # runs an actual exported policy but never creates a CUDA context.
-    device = torch.device("cpu")
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is mandatory for NEUROSEEK live queries; refusing CPU fallback")
+    device = torch.device("cuda")
     checkpoint = _checkpoint_path(args.checkpoint)
     state = load_checkpoint(checkpoint, device)
     model = NavigatorPolicy().to(device)
@@ -70,45 +67,52 @@ def main() -> int:
     graph = GraphMmap("data/processed")
     tasks = load_task_jsonl(args.tasks)
     query, _demonstration = tasks[args.index % len(tasks)]
-    env = GraphSearchEnv(graph, query, (), cuda_session=None)
-    steps: list[dict[str, object]] = []
-    started = time.perf_counter()
-    with torch.inference_mode():
-        for index in range(args.max_steps):
-            observation = torch.as_tensor(env.observation(), dtype=torch.float32, device=device).unsqueeze(0)
-            logits, value = model(observation)
-            probabilities = torch.softmax(logits[0], dim=0)
-            action = int(torch.argmax(probabilities).item())
-            result = env.step(action)
-            frontier = sorted(env.frontier)
-            # The viewer gets a small evidence window, not an unbounded graph dump.
-            candidates = [_name(graph, entity) for entity in frontier[:5]]
-            steps.append({
-                "index": index + 1,
-                "operator": OP_NAMES[action],
-                "policy_probability": round(float(probabilities[action]), 7),
-                "value": round(float(value[0]), 7),
-                "trace": result.trace[-1] if result.trace else "",
-                "frontier_size": len(frontier),
-                "frontier_sample": candidates,
-                "credits": result.credits,
-                "nodes_visited": result.nodes_visited,
-                "edges_examined": result.edges_examined,
-            })
-            if result.done:
-                break
-        if not env.done:
-            result = env.step(OP_NAMES.index("STOP"))
-            steps.append({"index": len(steps) + 1, "operator": "STOP", "policy_probability": None,
-                          "value": None, "trace": result.trace[-1], "frontier_size": len(env.frontier),
-                          "frontier_sample": [_name(graph, entity) for entity in sorted(env.frontier)[:5]],
-                          "credits": result.credits, "nodes_visited": result.nodes_visited,
-                          "edges_examined": result.edges_examined})
-    elapsed_ms = (time.perf_counter() - started) * 1000.0
+    cuda_backend = CudaExactBackend()
+    cuda_backend.self_test()
+    cuda_session = cuda_backend.create_graph_session(graph)
+    try:
+        env = GraphSearchEnv(graph, query, (), cuda_session=cuda_session)
+        steps: list[dict[str, object]] = []
+        started = time.perf_counter()
+        with torch.inference_mode():
+            for index in range(args.max_steps):
+                observation = torch.as_tensor(env.observation(), dtype=torch.float32, device=device).unsqueeze(0)
+                logits, value = model(observation)
+                probabilities = torch.softmax(logits[0], dim=0)
+                action = int(torch.argmax(probabilities).item())
+                result = env.step(action)
+                frontier = sorted(env.frontier)
+                # The viewer gets a small evidence window, not an unbounded graph dump.
+                candidates = [_name(graph, entity) for entity in frontier[:5]]
+                steps.append({
+                    "index": index + 1,
+                    "operator": OP_NAMES[action],
+                    "policy_probability": round(float(probabilities[action]), 7),
+                    "value": round(float(value[0]), 7),
+                    "trace": result.trace[-1] if result.trace else "",
+                    "frontier_size": len(frontier),
+                    "frontier_sample": candidates,
+                    "credits": result.credits,
+                    "nodes_visited": result.nodes_visited,
+                    "edges_examined": result.edges_examined,
+                })
+                if result.done:
+                    break
+            if not env.done:
+                result = env.step(OP_NAMES.index("STOP"))
+                steps.append({"index": len(steps) + 1, "operator": "STOP", "policy_probability": None,
+                              "value": None, "trace": result.trace[-1], "frontier_size": len(env.frontier),
+                              "frontier_sample": [_name(graph, entity) for entity in sorted(env.frontier)[:5]],
+                              "credits": result.credits, "nodes_visited": result.nodes_visited,
+                              "edges_examined": result.edges_examined})
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+    finally:
+        cuda_session.close()
     proof = [_name(graph, entity) for entity in env.proof_path]
     payload = {
         "event": "live_model_search",
-        "mode": "cpu_read_only_policy",
+        "mode": "cuda_read_only_policy",
+        "cuda_graph_session": True,
         "checkpoint": str(checkpoint),
         "checkpoint_global_step": int(state["global_step"]),
         "task_source": str(args.tasks),

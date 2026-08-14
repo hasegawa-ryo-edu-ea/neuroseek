@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Cinematic, read-only console for real NEUROSEEK learned-policy searches.
+"""Cinematic, read-only console for real CUDA NEUROSEEK policy searches.
 
-The process owns neither a trainer socket nor a CUDA context.  It loads one
-immutable checkpoint on CPU and explores the immutable mmap graph only after
-the operator requests a task.  Keyboard input controls this viewer alone.
+The process owns no trainer socket. It loads an immutable checkpoint and a
+GPU-resident CSR session; keyboard input controls this viewer alone.
 """
 from __future__ import annotations
 
@@ -20,8 +19,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
-
 import torch
 
 from neuroseek.data.graph import GraphMmap
@@ -29,6 +26,7 @@ from neuroseek.data.tasks import QuerySpec, load_task_jsonl
 from neuroseek.models.policy import NavigatorPolicy, OP_NAMES
 from neuroseek.search.environment import GraphSearchEnv, SearchResult
 from neuroseek.training.checkpoint import load_checkpoint
+from neuroseek.cuda_backend import CudaExactBackend
 
 
 DEFAULT_CHECKPOINT = Path("runs/presentation-stabilized-20260812T1520EDT/checkpoints/latest.ckpt")
@@ -139,8 +137,9 @@ def clip_cells(value: str, maximum: int) -> str:
 
 
 class Console:
-    def __init__(self, screen: Any, graph: GraphMmap, model: NavigatorPolicy, tasks: list[tuple[QuerySpec, tuple[int, ...] | None]], checkpoint: Path, language: str):
+    def __init__(self, screen: Any, graph: GraphMmap, model: NavigatorPolicy, tasks: list[tuple[QuerySpec, tuple[int, ...] | None]], checkpoint: Path, language: str, device: torch.device, cuda_session: object):
         self.screen, self.graph, self.model, self.tasks, self.checkpoint = screen, graph, model, tasks, checkpoint
+        self.device, self.cuda_session = device, cuda_session
         self.language = language
         self.task_index = 0
         self.tab = 1
@@ -246,12 +245,12 @@ class Console:
 
     def execute(self) -> None:
         query, _ = self.tasks[self.task_index]
-        env = GraphSearchEnv(self.graph, query, (), cuda_session=None)
+        env = GraphSearchEnv(self.graph, query, (), cuda_session=self.cuda_session)
         steps: list[Step] = []
         started = time.perf_counter()
         with torch.inference_mode():
             for _ in range(12):
-                observation = torch.as_tensor(env.observation(), dtype=torch.float32).unsqueeze(0)
+                observation = torch.as_tensor(env.observation(), dtype=torch.float32, device=self.device).unsqueeze(0)
                 logits, value = self.model(observation)
                 probabilities = torch.softmax(logits[0], dim=0)
                 action = int(torch.argmax(probabilities).item())
@@ -270,7 +269,7 @@ class Console:
         self.write(0, 1, "NEUROSEEK", 1, True)
         self.write(0, 13, self.text("EVIDENCE GRAPH SEARCH", "証拠グラフ探索"), 6, True)
         self.write(1, 1, "●", 2, True)
-        self.write(1, 3, self.text("CPU-ONLY · READ-ONLY · TRAINER ISOLATED", "CPU専用 · 読み取り専用 · 学習器から分離"), 6)
+        self.write(1, 3, self.text("CUDA · READ-ONLY · TRAINER UNCONTROLLED", "CUDA · 読み取り専用 · 学習器は制御しません"), 6)
         self.write(1, max(1, width - 38), f"TASK {self.task_index + 1}/{len(self.tasks)}", 4)
         self.write(2, 1, "─" * max(1, width - 2), 1)
         tabs = [(1, self.text("WORDS", "単語検索")), (2, self.text("MODEL", "モデル")), (3, self.text("PATH", "経路")), (4, self.text("PROOF", "証明")), (5, self.text("SYSTEM", "システム"))]
@@ -343,7 +342,7 @@ class Console:
             self.write(edge_start + index, 42, self.entity(node), 3)
         status_row = edge_start + edge_limit + 1
         if status_row < height - 3:
-            self.write(status_row, 2, f"✓ {self.text('EVIDENCE ON DEVICE', '端末内の証拠')}  CPU · local graph read-only · CUDA off · {self.text('name lookup', '名称解決')} {self.word.elapsed_ms:.1f} ms", 2)
+            self.write(status_row, 2, f"✓ {self.text('EVIDENCE ON DEVICE', '端末内の証拠')}  CUDA policy/CSR · local graph read-only · {self.text('name lookup', '名称解決')} {self.word.elapsed_ms:.1f} ms", 2)
         if not compact:
             self.draw_online_context(status_row + 2, outside, compact)
 
@@ -379,7 +378,7 @@ class Console:
         self.write(after, 2, f"{self.text('RESULT', '結果')}  {state}", 2 if result.valid_proof else 5, True)
         answer = self.entity(self.run.answer) if self.run.answer is not None else self.text("none", "なし")
         self.write(after + 1, 2, f"{self.text('ANSWER', '回答')}  {answer}", 6)
-        self.write(after + 2, 2, f"{self.text('LATENCY', 'レイテンシ')}  {self.run.elapsed_ms:.2f} ms CPU policy+search  ·  {self.text('CREDITS', 'クレジット')} {result.credits}  ·  {self.text('EDGES', 'エッジ')} {result.edges_examined}", 6)
+        self.write(after + 2, 2, f"{self.text('LATENCY', 'レイテンシ')}  {self.run.elapsed_ms:.2f} ms CUDA policy+CSR  ·  {self.text('CREDITS', 'クレジット')} {result.credits}  ·  {self.text('EDGES', 'エッジ')} {result.edges_examined}", 6)
 
     def page_path(self, row: int) -> None:
         self.write(row, 2, self.text("HOW THE POLICY CHOSE A PATH", "方策が経路を選ぶ過程"), 1, True)
@@ -429,7 +428,7 @@ class Console:
             (self.text("1  LEARN", "1  学習"), self.text("A learned policy chooses graph operations instead of a fixed traversal rule.", "学習済み方策が、固定ルールではなくグラフ演算を選びます。")),
             (self.text("2  EXPLORE", "2  探索"), self.text("The selected program touches real memory-mapped graph edges on the device.", "選ばれたプログラムが、端末内の実メモリマップグラフエッジをたどります。")),
             (self.text("3  PROVE", "3  証明"), self.text("A separate validator accepts only reconstructable graph evidence.", "別の検証器が、再構築できるグラフ証拠だけを受理します。")),
-            (self.text("4  COEXIST", "4  共存"), self.text("This viewer is CPU/read-only: no CUDA context, no trainer control, no writes.", "このビューアはCPU・読み取り専用です。CUDA・学習制御・書込みを行いません。")),
+            (self.text("4  ISOLATION", "4  分離"), self.text("This viewer uses CUDA but remains read-only: no trainer control and no writes. Schedule it outside active training.", "このビューアはCUDAを利用しますが読み取り専用です。学習器の制御や書込みは行いません。学習中とは時間を分けてください。")),
         ]
         for index, (name, value) in enumerate(rows):
             self.write(row + 3 + index * 3, 3, name, 4, True)
@@ -535,8 +534,8 @@ class Console:
                 self.tab = int(key)
 
 
-def run(screen: Any, graph: GraphMmap, model: NavigatorPolicy, tasks: list[tuple[QuerySpec, tuple[int, ...] | None]], checkpoint: Path, language: str) -> None:
-    Console(screen, graph, model, tasks, checkpoint, language).loop()
+def run(screen: Any, graph: GraphMmap, model: NavigatorPolicy, tasks: list[tuple[QuerySpec, tuple[int, ...] | None]], checkpoint: Path, language: str, device: torch.device, cuda_session: object) -> None:
+    Console(screen, graph, model, tasks, checkpoint, language, device, cuda_session).loop()
 
 
 def main() -> int:
@@ -547,7 +546,9 @@ def main() -> int:
     args = parser.parse_args()
     if not args.checkpoint.is_file() or not args.tasks.is_file():
         raise SystemExit("required immutable checkpoint or task artifact is absent")
-    device = torch.device("cpu")
+    if not torch.cuda.is_available():
+        raise SystemExit("CUDA is mandatory for the NEUROSEEK search console; refusing CPU fallback")
+    device = torch.device("cuda")
     state = load_checkpoint(args.checkpoint, device)
     model = NavigatorPolicy().to(device)
     model.load_state_dict(state["model"])
@@ -555,7 +556,13 @@ def main() -> int:
     model._neuroseek_step = int(state["global_step"])
     graph = GraphMmap("data/processed")
     tasks = load_task_jsonl(args.tasks)
-    curses.wrapper(run, graph, model, tasks, args.checkpoint, args.lang)
+    cuda_backend = CudaExactBackend()
+    cuda_backend.self_test()
+    cuda_session = cuda_backend.create_graph_session(graph)
+    try:
+        curses.wrapper(run, graph, model, tasks, args.checkpoint, args.lang, device, cuda_session)
+    finally:
+        cuda_session.close()
     return 0
 
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Loopback-only, CPU-only NEUROSEEK evidence-search web server.
+"""Loopback-only NEUROSEEK evidence-search web server.
 
 The viewer reads the same immutable graph and presentation checkpoint as the
-terminal search console.  It deliberately owns no CUDA context, does not write
-run data, and never signals the detached trainer.
+terminal search console.  Its short-lived policy workers require CUDA, do not
+write run data, and never signal the detached trainer.
 """
 from __future__ import annotations
 
@@ -17,8 +17,6 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 from neuroseek.data.graph import GraphMmap
 from search_console import DEFAULT_TASKS, wikidata_candidates, wikidata_labels
@@ -140,7 +138,7 @@ def make_handler(app: App, language: str):
             chosen_language = query.get("lang", [language])[0] if query.get("lang", [language])[0] in {"ja", "en"} else language
             try:
                 if parsed.path == "/api/health":
-                    self.send_json({"status": "ready", "mode": "cpu_read_only", "cuda": False})
+                    self.send_json({"status": "ready", "mode": "cuda_read_only_policy", "cuda": True})
                 elif parsed.path == "/api/search":
                     self.send_json(app.search(query.get("q", [""])[0], chosen_language))
                 elif parsed.path == "/api/graph":

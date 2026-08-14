@@ -76,18 +76,19 @@ services:
     command: ["bash", "-lc", "exec neuroseek-tui --attach-current"]
 
   search:
-    # Presentation/query service: deliberately CPU-only and short-lived.  It
-    # opens immutable graph/checkpoint inputs read-only and never joins the
-    # trainer's CUDA context, preventing inference demos from perturbing a
-    # concurrent training job.
+    # Presentation/query service: a short-lived, read-only CUDA worker.  It
+    # requires the same checked GPU path as training, but never writes a run,
+    # checkpoint, telemetry event, or graph artifact.
     image: neuroseek:jetson-r36.3-l4tml-r36.2
     profiles: ["search"]
+    runtime: nvidia
     network_mode: host
+    ipc: host
     init: true
     working_dir: /workspace
     environment:
-      CUDA_VISIBLE_DEVICES: ""
-      NVIDIA_VISIBLE_DEVICES: none
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
       PYTHONUNBUFFERED: "1"
     volumes:
       - .:/workspace:ro

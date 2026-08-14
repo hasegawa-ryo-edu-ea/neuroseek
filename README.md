@@ -103,7 +103,7 @@ Replace docker compose with sudo -n docker compose if required. Never resume int
 
 ## Use the final model
 
-The presentation/query tool is CPU-only and read-only, so it can demonstrate an immutable checkpoint without contending with training.
+The presentation/query tool is CUDA-required and read-only. It runs the policy and persistent CSR expansion on the GPU, refuses CPU fallback, and never writes data, checkpoints, or telemetry. Schedule it outside active training because it shares the Jetson GPU.
 
 ~~~
 ./search

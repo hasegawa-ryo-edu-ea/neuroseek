@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Search launcher: terminal TUI or loopback-only WebUI, isolated from trainer CUDA.
+# Search launcher: terminal TUI or loopback-only WebUI using the checked CUDA path.
 set -Eeuo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -25,7 +25,7 @@ case "$mode" in
     exec "${docker_cmd[@]}" compose -f compose.yaml run --rm --no-deps search python3 scripts/search_console.py --lang "$language" "$@"
     ;;
   web)
-    printf 'NEUROSEEK Web UI (CPU/read-only): http://127.0.0.1:8787\n'
+    printf 'NEUROSEEK Web UI (CUDA/read-only): http://127.0.0.1:8787\n'
     printf 'TUI command: ./search tui %s\n' "$language"
     exec "${docker_cmd[@]}" compose -f compose.yaml run --rm --no-deps search python3 scripts/search_web.py --lang "$language" "$@"
     ;;
@@ -37,7 +37,7 @@ NEUROSEEK SEARCH LAUNCHER
   [2] Web UI         ./search web ja
       Link (after start): http://127.0.0.1:8787
 
-The Web UI is loopback-only, CPU-only, and read-only.  It never joins CUDA or controls the trainer.
+The Web UI is loopback-only, CUDA-required, and read-only.  It never changes a trainer, checkpoint, graph, or telemetry.
 EOF
     ;;
   *)
