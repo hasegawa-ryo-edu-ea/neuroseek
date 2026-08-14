@@ -1,5 +1,7 @@
 # NEURO-ISA
 
+日本語版: [NEURO_ISA.ja.md](NEURO_ISA.ja.md)
+
 NEURO-ISA is the bounded instruction language used by NEUROSEEK search
 policies. `rust/core` is its deterministic CPU semantic reference. CUDA
 kernels may accelerate equivalent bulk work, but CUDA output must be checked

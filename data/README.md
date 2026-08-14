@@ -1,5 +1,7 @@
 # Data and model assets
 
+日本語版: [README.ja.md](README.ja.md)
+
 The source code is stored in Git. The Wikidata5M corpus, processed graph, and
 semantic model are published as assets of the `initial-data-and-models` GitHub
 Release because several files exceed GitHub's regular file-size limit.

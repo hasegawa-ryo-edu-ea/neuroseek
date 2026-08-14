@@ -1,5 +1,7 @@
 # Troubleshooting
 
+日本語版: [TROUBLESHOOTING.ja.md](TROUBLESHOOTING.ja.md)
+
 `./up.sh --doctor` reports missing Docker/NVIDIA runtime prerequisites without starting training. This host deliberately uses passwordless `sudo docker` when the current user is not in the Docker group; the launcher detects that case.
 
 If CUDA preflight fails, inspect `artifacts/host_probe.txt` and run `sudo docker compose -f compose.yaml run --rm trainer python3 -c 'import torch; print(torch.cuda.is_available())'`. Do not change JetPack or install an x86 CUDA container to work around it.

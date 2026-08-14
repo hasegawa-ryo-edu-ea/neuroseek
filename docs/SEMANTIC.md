@@ -1,5 +1,7 @@
 # Semantic lane
 
+日本語版: [SEMANTIC.ja.md](SEMANTIC.ja.md)
+
 NEUROSEEK has a symbolic CSR graph lane and a semantic entity-vector lane.  A semantic result is only a candidate jump: a later graph `VERIFY` remains responsible for factual proof.
 
 ## Artifact contract

@@ -1,5 +1,7 @@
 # Operator runbook
 
+日本語版: [RUNBOOK.ja.md](RUNBOOK.ja.md)
+
 Use `./up.sh --doctor` before a large experiment. `./up.sh --smoke` is the bounded synthetic verification path. `./up.sh --trial` uses a deterministic subgraph compiled from the real dataset and is bounded. `./up.sh` starts or resumes full detached production training and attaches a reader when interactive.
 
 Use `./status.sh` to inspect the detached service and `./logs.sh` for logs. To

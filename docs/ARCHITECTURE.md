@@ -1,5 +1,7 @@
 # Architecture
 
+日本語版: [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md)
+
 Immutable Wikidata triples compile to compact, memory-mapped forward and reverse CSR. `uint64` offsets, `uint32` node IDs, and `uint16` relation IDs avoid string work in hot paths. Human labels remain TSV lookup files.
 
 Rust owns NEURO-ISA semantics, VM accounting, graph CPU reference, and proof validation. CUDA provides C ABI bulk primitives compiled for SM87; parity tests compare them against host references. Python owns the compact query-conditioned navigator, PPO update, curriculum/task adapter, checkpoint lifecycle, and append-only metrics. The Rust terminal dashboard only tails metrics JSONL.

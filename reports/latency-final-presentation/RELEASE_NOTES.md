@@ -1,5 +1,7 @@
 # NEUROSEEK Jetson low-latency model
 
+日本語版: [RELEASE_NOTES.ja.md](RELEASE_NOTES.ja.md)
+
 This package contains the completed latency-specialized NEUROSEEK checkpoint
 and the immutable artifacts required to inspect its final held-out evaluation.
 

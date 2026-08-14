@@ -1,5 +1,7 @@
 # Reproducibility
 
+日本語版: [REPRODUCIBILITY.ja.md](REPRODUCIBILITY.ja.md)
+
 The host probe and resolved dependency manifest live in `artifacts/`. Dataset downloads are recorded with source URL, timestamp, byte size, and SHA-256. Processing is immutable under `data/processed/`; runs, logs, and checkpoints live under `runs/`.
 
 Every run captures its configuration, device selection, dataset manifest, and checkpoint state. The container is pinned to a Jetson/L4T-compatible image selected after probing this host; it must pass a CUDA smoke command before a training service starts.

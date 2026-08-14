@@ -5,6 +5,10 @@
     "surface": "report",
     "title": "NEUROSEEK Jetson 低レイテンシー学習：最終評価",
     "description": "発表用の再現可能な最終評価サマリー。保持テスト256件、同一データ・同一CUDA実行基盤で親モデルと派生モデルを比較。",
+    "languageAlternates": {
+      "ja": "FINAL_RESULT.ja.md",
+      "en": "FINAL_RESULT.en.md"
+    },
     "generatedAt": "2026-08-13T22:39:39Z",
     "cards": [
       {

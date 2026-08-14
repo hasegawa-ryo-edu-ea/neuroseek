@@ -5,6 +5,24 @@ const strings = {
 
 strings.en.graphHint = 'CLICK A WORD TO OPEN ITS LOCAL FACTS · PREV/NEXT OR ←/→ SELECT · FOCUS CENTERS THE ROUTE';
 strings.ja.graphHint = '単語をクリックすると、そのノードのローカル事実を開きます · 前へ/次へ または ←/→ で選択';
+Object.assign(strings.en, {
+  node:'NODE', localEdges:'LOCAL EDGES', relations:'RELATIONS', snapshot:'SNAPSHOT', view:'VIEW',
+  resolving:'RESOLVING', exploring:'EXPLORING', evidenceReady:'EVIDENCE READY', boundaryStage:'BOUNDARY', errorStage:'ERROR',
+  policyProof:'POLICY PROOF', policyPathStage:'POLICY PATH', runningPolicy:'RUNNING POLICY',
+  validPolicyProof:'VALID POLICY PROOF', validProof:'VALID PROOF', unverifiedPath:'UNVERIFIED PATH',
+  program:'PROGRAM', ops:'OPS', proof:'PROOF', nodes:'NODES', frontier:'FRONTIER', words:'WORDS', valid:'VALID', yes:'YES', no:'NO',
+  proofVerified:'VERIFIED', proofUnverified:'UNVERIFIED', noAnswer:'NO ANSWER', localGraphReady:'LOCAL GRAPH / READY',
+  answer:'Answer', elapsed:'Elapsed', credits:'credits', edges:'edges', none:'none', noValidProof:'NO VALID PROOF'
+});
+Object.assign(strings.ja, {
+  node:'ノード', localEdges:'ローカルエッジ', relations:'関係', snapshot:'スナップショット', view:'表示倍率',
+  resolving:'候補を照合中', exploring:'グラフを探索中', evidenceReady:'証拠を表示中', boundaryStage:'証拠の境界', errorStage:'エラー',
+  policyProof:'方策の証明', policyPathStage:'方策経路', runningPolicy:'方策を実行中',
+  validPolicyProof:'有効な方策の証明', validProof:'有効な証明', unverifiedPath:'未検証の経路',
+  program:'プログラム', ops:'操作', proof:'証明', nodes:'ノード', frontier:'フロンティア', words:'候補', valid:'有効', yes:'はい', no:'いいえ',
+  proofVerified:'検証済み', proofUnverified:'未検証', noAnswer:'回答なし', localGraphReady:'ローカルグラフ / 準備完了',
+  answer:'回答', elapsed:'実行時間', credits:'クレジット', edges:'エッジ', none:'なし', noValidProof:'有効な証明なし'
+});
 
 let lang = 'ja';
 let selected = null;
@@ -17,13 +35,14 @@ const scene = { x: 0, y: 0, zoom: 1, drag: null, selected: 0, reveal: 0, animati
 const controlStrings = { en: { back: 'BACK', expand: 'OPEN NODE' }, ja: { back: '戻る', expand: 'ノードを開く' } };
 const t = key => strings[lang][key] || controlStrings[lang][key] || key;
 const notice = value => { $('#notice').textContent = value; };
-const stage = value => { $('#story-state').textContent = value; };
+const stage = key => { $('#story-state').textContent = t(key); };
 
 function applyLanguage() {
   document.documentElement.lang = lang;
   document.querySelectorAll('[data-i18n]').forEach(node => { node.textContent = t(node.dataset.i18n); });
   $('#language').textContent = lang === 'ja' ? 'EN' : '日本語';
   if (graphData) renderGraph(graphData, false);
+  else if (policyData) renderPolicyPath(policyData);
 }
 
 async function api(path) {
@@ -36,11 +55,11 @@ async function api(path) {
 function summary(data) {
   const relationCount = new Set(data.edges.map(edge => edge.relation.id)).size;
   $('#graph-summary').innerHTML = [
-    `<span>NODE <b>${data.root.id}</b></span>`,
-    `<span>LOCAL EDGES <b>${data.edges.length}</b></span>`,
-    `<span>RELATIONS <b>${relationCount}</b></span>`,
-    `<span>SNAPSHOT <b>${data.graph.entities.toLocaleString()}</b></span>`,
-    `<span id="view-stat">VIEW <b>${scene.zoom.toFixed(2)}×</b></span>`,
+    `<span>${t('node')} <b>${data.root.id}</b></span>`,
+    `<span>${t('localEdges')} <b>${data.edges.length}</b></span>`,
+    `<span>${t('relations')} <b>${relationCount}</b></span>`,
+    `<span>${t('snapshot')} <b>${data.graph.entities.toLocaleString()}</b></span>`,
+    `<span id="view-stat">${t('view')} <b>${scene.zoom.toFixed(2)}×</b></span>`,
   ].join('');
 }
 
@@ -115,14 +134,14 @@ async function expandSecond(index) {
 
 function viewStat() {
   const stat = $('#view-stat');
-  if (stat) stat.innerHTML = `VIEW <b>${scene.zoom.toFixed(2)}×</b>`;
+  if (stat) stat.innerHTML = `${t('view')} <b>${scene.zoom.toFixed(2)}×</b>`;
 }
 
 async function search() {
   const query = $('#query').value.trim();
   if (!query) return;
   notice(lang === 'ja' ? '候補をローカルグラフに照合しています…' : 'Resolving candidates against the local graph…');
-  stage('RESOLVING');
+  stage('resolving');
   try {
     const data = await api(`/api/search?q=${encodeURIComponent(query)}&lang=${lang}`);
     const row = $('#candidate-row');
@@ -138,24 +157,24 @@ async function search() {
     });
     const first = data.candidates.find(candidate => candidate.local);
     if (first) await select(first);
-    else { notice(lang === 'ja' ? 'ローカルにある候補はありません。外部候補は証拠としては扱いません。' : 'No candidate is in the local snapshot. External context is not presented as evidence.'); stage('BOUNDARY'); }
-  } catch (error) { notice(error.message); stage('ERROR'); }
+    else { notice(lang === 'ja' ? 'ローカルにある候補はありません。外部候補は証拠としては扱いません。' : 'No candidate is in the local snapshot. External context is not presented as evidence.'); stage('boundaryStage'); }
+  } catch (error) { notice(error.message); stage('errorStage'); }
 }
 
 async function select(candidate) { navigation = []; await navigateTo(candidate); }
 
 async function loadGraph() {
   if (!selected) return;
-  stage('EXPLORING');
+  stage('exploring');
   notice(lang === 'ja' ? 'ローカルグラフの実エッジを展開しています…' : 'Unfolding real local graph edges…');
   try {
     graphMode = 'local';
     policyData = null;
     graphData = await api(`/api/graph?entity=${encodeURIComponent(selected.identifier)}&relation=${encodeURIComponent($('#relation').value)}&lang=${lang}`);
     renderGraph(graphData, true);
-    stage('EVIDENCE READY');
+    stage('evidenceReady');
     notice(lang === 'ja' ? `${graphData.edges.length} 本のローカルエッジを段階的に可視化しました。` : `Unfolding ${graphData.edges.length} local graph edges.`);
-  } catch (error) { notice(error.message); stage('BOUNDARY'); }
+  } catch (error) { notice(error.message); stage('boundaryStage'); }
 }
 
 function renderGraph(data, animate = true) {
@@ -308,15 +327,15 @@ function policyCandidates(data) {
 function renderPolicyPath(data) {
   graphMode = 'policy'; graphData = null; policyData = data; scene.reveal = performance.now(); resetView();
   const valid = data.outcome.valid_proof;
-  $('#graph-title').textContent = `${valid ? 'VALID POLICY PROOF' : 'POLICY PATH'}  [${data.query.task_id}]`;
+  $('#graph-title').textContent = `${t(valid ? 'validPolicyProof' : 'policyPathStage')}  [${data.query.task_id}]`;
   $('#entity-card').className = 'entity-card result-arrive';
-  $('#entity-card').innerHTML = `<strong>${valid ? 'VALID PROOF' : 'UNVERIFIED PATH'}</strong><p>${data.query.family} · ${data.steps.length} operators · ${data.outcome.credits} credits</p><p>${lang === 'ja' ? '方策が出した経路と、途中で見えた候補を同時表示しています。' : 'Showing the emitted policy path together with frontier candidates encountered during search.'}</p>`;
+  $('#entity-card').innerHTML = `<strong>${t(valid ? 'validProof' : 'unverifiedPath')}</strong><p>${data.query.family} · ${data.steps.length} ${t('ops')} · ${data.outcome.credits} ${t('credits')}</p><p>${lang === 'ja' ? '方策が出した経路と、途中で見えた候補を同時表示しています。' : 'Showing the emitted policy path together with frontier candidates encountered during search.'}</p>`;
   const candidates = policyCandidates(data);
   $('#facts').innerHTML = candidates.map((node, index) => `<li class="reveal-item" style="--delay:${220 + index * 55}ms"><b>ALT</b> <em>${node.label}</em><br>→ ${node.identifier}</li>`).join('') || `<li>${lang === 'ja' ? '探索フロンティア候補はありません。' : 'No frontier alternatives were emitted.'}</li>`;
-  $('#graph-summary').innerHTML = [`<span>PROGRAM <b>${data.steps.length} OPS</b></span>`,`<span>PROOF <b>${data.outcome.proof_path.length} NODES</b></span>`,`<span>FRONTIER <b>${candidates.length} WORDS</b></span>`,`<span>VALID <b>${valid ? 'YES' : 'NO'}</b></span>`,`<span id="view-stat">VIEW <b>1.00×</b></span>`].join('');
-  $('#selected-edge').textContent = `${valid ? 'VERIFIED' : 'UNVERIFIED'} · ${data.outcome.answer ? data.outcome.answer.label : 'NO ANSWER'}`;
+  $('#graph-summary').innerHTML = [`<span>${t('program')} <b>${data.steps.length} ${t('ops')}</b></span>`,`<span>${t('proof')} <b>${data.outcome.proof_path.length} ${t('nodes')}</b></span>`,`<span>${t('frontier')} <b>${candidates.length} ${t('words')}</b></span>`,`<span>${t('valid')} <b>${t(valid ? 'yes' : 'no')}</b></span>`,`<span id="view-stat">${t('view')} <b>1.00×</b></span>`].join('');
+  $('#selected-edge').textContent = `${t(valid ? 'proofVerified' : 'proofUnverified')} · ${data.outcome.answer ? data.outcome.answer.label : t('noAnswer')}`;
   drawPolicy(data, candidates);
-  stage(valid ? 'POLICY PROOF' : 'POLICY PATH');
+  stage(valid ? 'policyProof' : 'policyPathStage');
   notice(lang === 'ja' ? '学習済み方策の実行経路を表示中です。灰色ノードは探索中に現れた別候補で、証明経路ではありません。' : 'Showing the learned policy path. Gray nodes are frontier alternatives, not proof-path nodes.');
 }
 
@@ -341,8 +360,8 @@ function drawPolicy(data, candidates) {
 
 async function showPolicyPath() {
   $('#run-policy-path').disabled = true;
-  stage('RUNNING POLICY'); notice(lang === 'ja' ? '固定チェックポイントで学習済み方策をCPU実行中…' : 'Running the immutable policy checkpoint on CPU…');
-  try { renderPolicyPath(await api(`/api/policy?task=0&lang=${lang}`)); } catch (error) { notice(error.message); stage('ERROR'); } finally { $('#run-policy-path').disabled = false; }
+  stage('runningPolicy'); notice(lang === 'ja' ? '固定チェックポイントで学習済み方策をCPU実行中…' : 'Running the immutable policy checkpoint on CPU…');
+  try { renderPolicyPath(await api(`/api/policy?task=0&lang=${lang}`)); } catch (error) { notice(error.message); stage('errorStage'); } finally { $('#run-policy-path').disabled = false; }
 }
 
 function point(event) { const rect = $('#graph-canvas').getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; }
@@ -421,7 +440,7 @@ async function runPolicy() {
   out.innerHTML = `<p class="result-arrive">${lang === 'ja' ? '不変チェックポイントをCPUで実行中…' : 'Running immutable checkpoint on CPU…'}</p>`;
   try {
     const data = await api(`/api/policy?task=0&lang=${lang}`); const outcome = data.outcome;
-    out.innerHTML = `<p class="${outcome.valid_proof ? 'result-valid' : 'result-invalid'} result-arrive">${outcome.valid_proof ? 'VALID PROOF' : 'NO VALID PROOF'}</p><p class="result-arrive" style="--delay:90ms">${lang === 'ja' ? '回答' : 'Answer'}: ${outcome.answer ? `${outcome.answer.label} [${outcome.answer.identifier}]` : 'none'}</p><p class="result-arrive" style="--delay:160ms">${lang === 'ja' ? '実行時間' : 'Elapsed'}: ${outcome.elapsed_ms} ms · ${lang === 'ja' ? 'クレジット' : 'credits'}: ${outcome.credits} · ${lang === 'ja' ? 'エッジ' : 'edges'}: ${outcome.edges_examined}</p><ol class="trace">${data.steps.map((step, index) => `<li class="reveal-item" style="--delay:${240 + index * 58}ms"><b>${String(step.index).padStart(2, '0')} ${step.operator}</b> ${step.trace}</li>`).join('')}</ol>`;
+    out.innerHTML = `<p class="${outcome.valid_proof ? 'result-valid' : 'result-invalid'} result-arrive">${t(outcome.valid_proof ? 'validProof' : 'noValidProof')}</p><p class="result-arrive" style="--delay:90ms">${t('answer')}: ${outcome.answer ? `${outcome.answer.label} [${outcome.answer.identifier}]` : t('none')}</p><p class="result-arrive" style="--delay:160ms">${t('elapsed')}: ${outcome.elapsed_ms} ms · ${t('credits')}: ${outcome.credits} · ${t('edges')}: ${outcome.edges_examined}</p><ol class="trace">${data.steps.map((step, index) => `<li class="reveal-item" style="--delay:${240 + index * 58}ms"><b>${String(step.index).padStart(2, '0')} ${step.operator}</b> ${step.trace}</li>`).join('')}</ol>`;
   } catch (error) { out.innerHTML = `<p class="result-invalid">${error.message}</p>`; }
 }
 
@@ -433,6 +452,6 @@ $('#relation').addEventListener('keydown', event => { if (event.key === 'Enter')
 $('#run-policy').onclick = runPolicy;
 $('#run-policy-path').onclick = showPolicyPath;
 $('#language').onclick = () => { lang = lang === 'ja' ? 'en' : 'ja'; applyLanguage(); };
-api('/api/health').then(() => { notice(lang === 'ja' ? '準備完了。単語またはQ-IDを入力してください。' : 'Ready. Enter a word or Q-ID.'); $('#graph-meta').textContent = 'LOCAL GRAPH / READY'; }).catch(error => notice(error.message));
+api('/api/health').then(() => { notice(lang === 'ja' ? '準備完了。単語またはQ-IDを入力してください。' : 'Ready. Enter a word or Q-ID.'); $('#graph-meta').textContent = t('localGraphReady'); }).catch(error => notice(error.message));
 graphSetup();
 applyLanguage();

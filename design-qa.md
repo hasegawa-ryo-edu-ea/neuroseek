@@ -1,3 +1,5 @@
+Japanese version: [design-qa.ja.md](design-qa.ja.md)
+
 **Findings**
 
 - [P1] Browser-rendered visual comparison is unavailable in this execution environment.
@@ -41,4 +43,4 @@ Console errors checked: JavaScript syntax was checked with `node --check`; no br
 
 Comparison history: the supplied 2557×1377 screenshot was reviewed as the existing rendered baseline. The first iteration added visible drag/zoom/reset affordances, node selection, staged edge/node materialization, and staggered evidence/candidate/result reveals. The second iteration fixes the pointer-start/scene-coordinate mix-up, clamps pan range, increases the graph viewport, renders up to 18 real local edges in a radial graph layout, and exposes node/edge/relation/snapshot/view statistics. The third iteration adds a delayed, selected-branch second-hop expansion sourced from the local graph, with a separate green graph layer and explicit `SECOND HOP · LOCAL ONLY` legend. The fourth iteration adds a `POLICY PATH` control that executes the immutable policy on CPU and replaces the theater with its actual proof path plus alternate frontier words; it was function-verified with Japanese labels for the proof path, relations, and frontier candidates. A current browser capture is still required for pixel-level comparison.
 
-final result: blocked
+Final result: blocked pending a browser capture.

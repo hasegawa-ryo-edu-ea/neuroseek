@@ -1,5 +1,7 @@
 # NEUROSEEK graph format
 
+日本語版: [GRAPH_FORMAT.ja.md](GRAPH_FORMAT.ja.md)
+
 `scripts/preprocess.py` compiles the immutable Wikidata5M TSV split files into a directory published atomically only after successful completion. IDs are compact, zero-based `uint32` nodes and `uint16` relations; the compiler rejects a dataset that exceeds either width.
 
 Forward and reverse CSR are materialized separately. `original_triples` is the exact number of input facts; `traversal_edges` is exactly twice that count and is only a traversal index, not additional facts.

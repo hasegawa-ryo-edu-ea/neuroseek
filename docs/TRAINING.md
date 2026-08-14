@@ -1,5 +1,7 @@
 # Training and recovery
 
+日本語版: [TRAINING.ja.md](TRAINING.ja.md)
+
 `full.toml` uses a 180,000-second (50-hour) wall-clock ceiling. The launcher always creates or resumes a detached trainer service; dashboard attachment must not affect it. Initial full semantic preparation has its own six-hour fail-closed budget. If it reaches that limit, it atomically checkpoints and exits before training starts; rerunning `./up.sh` resumes preparation. On this prepared host, this makes the normal first invocation bounded below the requested 60-hour envelope rather than allowing an unbounded setup stage.
 
 Each checkpoint includes model, optimizer, phase, best metric, configuration, RNG state, task-generator RNG/cursor, held-out exclusion set, and phase state. A trial/full resume refuses a checkpoint that lacks task-generator state rather than silently replaying the task stream from its seed. Checkpoints are written to a same-directory temporary file, fsynced, then atomically renamed. `latest.ckpt` and `best.ckpt` are retained independently of periodic retention.

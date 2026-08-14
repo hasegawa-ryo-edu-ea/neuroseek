@@ -38,6 +38,111 @@ local facts and validation searches. It does not generate answers or expose an
 HTTP API by itself; the calling LLM application is responsible for API access
 and for writing the final response.
 
+## Architecture and engineering choices
+
+NEUROSEEK is deliberately split into components with different jobs and trust
+boundaries. Fast learned or GPU-assisted decisions reduce the search space;
+only immutable graph evidence can establish an answer. This separation is the
+reason the system can optimize for an edge device without presenting a
+similarity score as a fact.
+
+```text
+Wikidata5M triples
+       │  deterministic preprocessing + manifest/hash
+       ▼
+immutable mmap forward/reverse CSR ──► Rust NEURO-ISA VM ──► proof validator
+       │                                      ▲                     │
+       │                                      │                     ▼
+       ▼                              bounded policy program   answer only if valid
+aligned entity vectors ──► CUDA exact scoring/top-k ──► candidate jumps
+       │
+       └── semantic candidates guide search; they never replace graph proof
+```
+
+### 1. Graph evidence is the source of truth
+
+The offline compiler turns triples into immutable, memory-mapped forward and
+reverse CSR arrays. Hot paths use compact numeric representations (`uint64`
+offsets, `uint32` node IDs, and `uint16` relation IDs), while human-readable
+labels stay in separate TSV lookups. This avoids string processing and large
+in-memory object graphs during search, and lets the same processed graph be
+shared by training, evaluation, and read-only queries.
+
+The Rust VM executes a constrained NEURO-ISA program under explicit budgets.
+It records examined nodes and edges, instructions, ANN calls, credits, frontier
+state, and the edges actually observed during execution. Its proof validator
+then checks both the proposed answer and every proof edge against the immutable
+CSR graph. A candidate that is plausible but lacks valid graph evidence remains
+unverified rather than being converted into an answer.
+
+### 2. Semantic retrieval is helpful but never authoritative
+
+The semantic lane aligns one entity vector with each compact graph entity ID.
+Its artifact contains the ordered IDs, row-major FP16 embeddings, and a
+manifest with dimensions, normalization, source, coverage, and hashes. Full
+mode accepts the artifact only when IDs are exactly the complete compact-ID
+range; matching vector counts alone are not accepted as alignment evidence.
+
+The current production backend deliberately uses exact CUDA dot-product
+scoring in bounded batches and a deterministic host-side top-k merge. That is
+a correctness-first trade-off: the backend reports its `cuda_exact` identity
+and host merge instead of implying an approximate all-GPU index. CUDA failure
+is fatal outside explicitly named smoke/test paths—there is no silent NumPy or
+CPU fallback. Bounded TransE artifacts exist for trials, are marked partial in
+their manifests, and cannot silently satisfy a full Wikidata5M run.
+
+### 3. Learning is constrained by real execution costs
+
+Python owns the compact query-conditioned navigator, curriculum adapter, and
+training loop. The curriculum first collects measured CUDA-search behavior and
+fits a durable hardware-cost model, then uses behavior cloning to anchor valid
+proof programs before PPO improves the policy. The policy can be penalized for
+predicted latency and instruction count, but a valid proof remains the dominant
+success criterion; a shorter invalid trace is not rewarded as a successful
+answer.
+
+Tasks are structured `QuerySpec` graph problems, not free-form language
+questions. Train/validation/test splits have separate seeds and persisted
+files. This makes it possible to compare fixed held-out tasks using answer
+accuracy, proof validity, nodes/edges examined, instruction count, ANN calls,
+credits, latency, and energy when telemetry is available.
+
+### 4. CUDA compatibility is a release gate, not a checkbox
+
+The runtime image is pinned by digest to a Jetson/L4T-compatible NVIDIA image.
+This follows a real compatibility constraint: enumerating the GPU in PyTorch
+does not prove that custom CUDA code can execute on the host/toolchain pair.
+Before training starts, the startup path requires the custom SM87 CUDA
+primitives to agree with their host reference. The CUDA code is exposed through
+a narrow C ABI, keeping bulk GPU operations separate from Python orchestration
+and making parity failures visible early.
+
+### 5. Long edge runs are designed to fail safely and resume visibly
+
+Full semantic preparation is capped separately from the 50-hour curriculum
+and writes an initial recovery checkpoint before expensive work. Progress and
+training checkpoints are atomically published, fsynced, and validated on
+resume; incompatible or corrupt state fails closed rather than being mixed with
+a new run. A complete semantic artifact is published only after its manifest
+and data are ready, and its temporary progress checkpoint is then removed.
+
+The operator guardrails reserve disk space before large work, preserve
+configuration/data/semantic hashes with each run, and use a critical thermal
+policy that checkpoints and stops instead of continuing in a critical state.
+Metrics are append-only JSONL. The Rust TUI and `watch` consume those durable
+events read-only, so reconnecting over SSH can attach a monitor without
+starting a duplicate trainer or contending for GPU memory.
+
+### 6. Reproducibility and integration are first-class interfaces
+
+Raw downloads retain source, timestamp, size, and SHA-256; processed graph data
+is immutable; generated runs, logs, and checkpoints live separately under
+`runs/`. The container digest, locked language dependencies, host probe, and
+resolved environment manifest make the executable environment inspectable as
+well as the model artifacts. The MCP server mirrors this discipline: it offers
+read-only local facts and validated searches over stdio, while the calling LLM
+remains responsible for language generation and any network-facing API.
+
 ## Requirements
 
 The validated environment is a Jetson Orin Nano running Jetson Linux R36.3
@@ -146,17 +251,18 @@ test set; they are not confidence intervals, an external-SOTA comparison, or
 a natural-language question-answering evaluation. See the [raw comparison]
 (runs/latency-optimization-20260813T1255EDT/exports/benchmark_comparison.csv)
 and [evaluation report](reports/latency-final-presentation/report.html).
-The complete submission measurement record, provenance, environment snapshot,
-test status, and artifact index are in [Final measurement record](docs/FINAL_RESULTS.md).
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Training](docs/TRAINING.md)
-- [Operator runbook](docs/RUNBOOK.md)
-- [Experiment design](docs/EXPERIMENT_DESIGN.md)
-- [Reproducibility](docs/REPRODUCIBILITY.md)
-- [Graph format](docs/GRAPH_FORMAT.md)
-- [Semantic lane contract](docs/SEMANTIC.md)
-- [Final measurement record](docs/FINAL_RESULTS.md)
-- [Third-party data and licenses](THIRD_PARTY.md)
+- [Architecture](docs/ARCHITECTURE.md) / [日本語](docs/ARCHITECTURE.ja.md)
+- [Training](docs/TRAINING.md) / [日本語](docs/TRAINING.ja.md)
+- [Operator runbook](docs/RUNBOOK.md) / [日本語](docs/RUNBOOK.ja.md)
+- [Experiment design](docs/EXPERIMENT_DESIGN.md) / [日本語](docs/EXPERIMENT_DESIGN.ja.md)
+- [Reproducibility](docs/REPRODUCIBILITY.md) / [日本語](docs/REPRODUCIBILITY.ja.md)
+- [Graph format](docs/GRAPH_FORMAT.md) / [日本語](docs/GRAPH_FORMAT.ja.md)
+- [Semantic lane contract](docs/SEMANTIC.md) / [日本語](docs/SEMANTIC.ja.md)
+- [NEURO-ISA](docs/NEURO_ISA.md) / [日本語](docs/NEURO_ISA.ja.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md) / [日本語](docs/TROUBLESHOOTING.ja.md)
+- [Data and model assets](data/README.md) / [日本語](data/README.ja.md)
+- [Third-party data and licenses](THIRD_PARTY.md) / [日本語](THIRD_PARTY.ja.md)
+- [Final evaluation](reports/latency-final-presentation/FINAL_RESULT.en.md) / [日本語](reports/latency-final-presentation/FINAL_RESULT.ja.md)
